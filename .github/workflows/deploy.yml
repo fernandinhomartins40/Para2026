@@ -8,6 +8,7 @@ name: Build and Deploy (GHCR -> VPS)
   push:
     branches:
       - main
+      - ccr-137a6d1b-34r2wb
   workflow_dispatch:
 
 permissions:
