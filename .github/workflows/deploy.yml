@@ -1,0 +1,116 @@
+name: Build and Deploy (GHCR -> VPS)
+
+# A imagem é construída no runner do GitHub e publicada no GHCR.
+# A VPS (runner self-hosted) apenas faz `pull` e sobe o container — não compila nada.
+# Sem domínio: acesso por http://IP_DA_VPS:APP_PORT
+
+"on":
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+# Um deploy por vez; se chegar commit novo, cancela o anterior.
+concurrency:
+  group: deploy-para2026
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/fernandinhomartins40/para2026-whatsapp
+  # Porta alta no host para não colidir com as outras aplicações da VPS.
+  APP_PORT: "47815"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          # `latest` + SHA do commit (permite rollback com RELEASE=<sha>)
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
+          provenance: false
+          sbom: false
+
+  deploy:
+    needs: build
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to VPS (pull only, sem build)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          RELEASE: ${{ github.sha }}
+          BRANCH: ${{ github.ref_name }}
+          # Opcionais: se definidos em Settings > Secrets, a página pede usuário/senha.
+          BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
+          BASIC_AUTH_PASS: ${{ secrets.BASIC_AUTH_PASS }}
+        run: |
+          set -e
+          export APP_DIR="/opt/para2026"
+
+          echo "=== Sincronizando código em $APP_DIR (compose e scripts) ==="
+          . "$GITHUB_WORKSPACE/scripts/vps-deploy-lib.sh"
+          sync_repo "$BRANCH"
+
+          echo "=== Configurando .env ==="
+          RELEASE_ANTERIOR=$(get_env_var RELEASE)
+          echo "Release anterior: ${RELEASE_ANTERIOR:-<nenhuma>}"
+          write_env
+          set_env_var RELEASE "${RELEASE}"
+
+          echo "=== Verificando porta ${APP_PORT} ==="
+          check_port "${APP_PORT}"
+
+          echo "=== Autenticando no GHCR ==="
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+          echo "=== Baixando imagem pronta (a VPS NÃO compila) ==="
+          docker-compose -f docker-compose.vps.yml pull whatsapp
+
+          echo "=== Subindo container ==="
+          docker-compose -f docker-compose.vps.yml up -d --no-build whatsapp
+          wait_healthy 30 5
+
+          echo "=== Healthcheck final ==="
+          final_check "${APP_PORT}"
+
+          # Limpeza restrita às imagens DESTE projeto (VPS compartilhada: nunca `prune -a`).
+          # Preserva a release atual e a anterior (rede de rollback).
+          echo "=== Limpando versões antigas da imagem ==="
+          docker images --format '{{.Repository}}:{{.Tag}}' \
+            | grep "^${IMAGE}:" \
+            | grep -v -e ":latest$" -e ":buildcache$" -e ":${RELEASE}$" \
+            | { if [ -n "$RELEASE_ANTERIOR" ]; then grep -v ":${RELEASE_ANTERIOR}$"; else cat; fi; } \
+            | xargs -r docker rmi 2>/dev/null || true
+          docker image prune -f || true
+
+          echo "=== Deploy concluído (RELEASE=${RELEASE}) ==="

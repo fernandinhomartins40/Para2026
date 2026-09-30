@@ -1,0 +1,79 @@
+name: Redeploy / Rollback (pull only)
+
+# Sobe na VPS uma imagem JÁ CONSTRUÍDA no GitHub (GHCR), sem novo build.
+# A VPS nunca compila. Usos:
+#   - reiniciar/recriar o container com a versão atual (release = latest)
+#   - rollback para um commit anterior (release = SHA completo do commit)
+# O build acontece apenas no deploy.yml, no runner do GitHub.
+
+"on":
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Tag da imagem no GHCR: 'latest' ou o SHA completo de um commit já publicado"
+        required: true
+        default: latest
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: deploy-para2026
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/fernandinhomartins40/para2026-whatsapp
+  # Mesma porta alta do deploy.yml
+  APP_PORT: "47815"
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Redeploy on VPS (pull only, sem build)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          RELEASE: ${{ inputs.release }}
+          BRANCH: ${{ github.ref_name }}
+          BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
+          BASIC_AUTH_PASS: ${{ secrets.BASIC_AUTH_PASS }}
+        run: |
+          set -e
+          export APP_DIR="/opt/para2026"
+
+          if ! echo "$RELEASE" | grep -Eq '^(latest|[0-9a-f]{40})$'; then
+            echo "ERRO: release deve ser 'latest' ou um SHA completo (40 caracteres)"
+            exit 1
+          fi
+
+          echo "=== Sincronizando código em $APP_DIR (compose e scripts) ==="
+          . "$GITHUB_WORKSPACE/scripts/vps-deploy-lib.sh"
+          sync_repo "$BRANCH"
+
+          echo "=== Configurando .env (RELEASE=${RELEASE}) ==="
+          write_env
+          set_env_var RELEASE "${RELEASE}"
+
+          echo "=== Verificando porta ${APP_PORT} ==="
+          check_port "${APP_PORT}"
+
+          echo "=== Autenticando no GHCR ==="
+          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+          echo "=== Baixando imagem ${IMAGE}:${RELEASE} (a VPS NÃO compila) ==="
+          docker-compose -f docker-compose.vps.yml pull whatsapp
+
+          echo "=== Recriando container ==="
+          docker-compose -f docker-compose.vps.yml up -d --no-build --force-recreate whatsapp
+          wait_healthy 30 5
+
+          echo "=== Healthcheck final ==="
+          final_check "${APP_PORT}"
+
+          docker image prune -f || true
+          echo "=== Redeploy concluído (RELEASE=${RELEASE}) ==="
