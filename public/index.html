@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Envio Manual WhatsApp</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Envio Manual WhatsApp</h1>
+    <span id="badge" class="badge">...</span>
+  </header>
+
+  <main>
+    <section class="col">
+      <div class="card" id="card-conn">
+        <h2>Conexão</h2>
+        <div id="conn-body">
+          <p id="conn-msg">Carregando...</p>
+          <img id="qr" alt="QR Code do WhatsApp" hidden>
+        </div>
+        <div class="row">
+          <button id="btn-restart" class="secondary">Reconectar</button>
+          <button id="btn-logout" class="danger">Desconectar / trocar número</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Mensagem</h2>
+        <label for="text">Texto (use <code>{nome}</code> ou <code>{primeiro_nome}</code> para personalizar)</label>
+        <textarea id="text" rows="7" placeholder="Olá {primeiro_nome}, tudo bem?"></textarea>
+        <div class="row">
+          <button id="btn-save-text">Salvar texto</button>
+          <span id="text-saved" class="muted"></span>
+        </div>
+
+        <label>Imagem (vai junto com o texto como legenda)</label>
+        <div id="image-box">
+          <img id="image-preview" alt="Imagem" hidden>
+          <p id="no-image" class="muted">Nenhuma imagem selecionada</p>
+        </div>
+        <div class="row">
+          <input type="file" id="image-input" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          <button id="btn-pick-image" class="secondary">Escolher imagem</button>
+          <button id="btn-remove-image" class="danger" hidden>Remover imagem</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="col wide">
+      <div class="card">
+        <h2>Adicionar números</h2>
+        <label for="numbers">Um por linha. Pode ser <code>11999999999</code> ou <code>11999999999;Nome</code></label>
+        <textarea id="numbers" rows="5" placeholder="11999998888;Maria Silva&#10;+55 21 98888-7777;João"></textarea>
+        <div class="row">
+          <button id="btn-add">Adicionar à lista</button>
+          <span id="add-result" class="muted"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="list-head">
+          <h2>Lista</h2>
+          <div class="counts">
+            <span class="pill pending">Pendentes <b id="c-pending">0</b></span>
+            <span class="pill sent">Enviados <b id="c-sent">0</b></span>
+            <span class="pill failed">Falhas <b id="c-failed">0</b></span>
+          </div>
+        </div>
+
+        <div class="next-box">
+          <button id="btn-next" class="big">Enviar para o próximo pendente</button>
+          <p id="next-info" class="muted"></p>
+        </div>
+
+        <div class="tabs" id="tabs">
+          <button data-status="pending" class="active">Pendentes</button>
+          <button data-status="sent">Enviados</button>
+          <button data-status="failed">Falhas</button>
+          <button data-status="all">Todos</button>
+          <button id="btn-clear" class="link danger-text">Limpar não enviados</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Número</th><th>Nome</th><th>Status</th><th>Enviado em</th><th></th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <p id="empty" class="muted center" hidden>Nenhum número aqui.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

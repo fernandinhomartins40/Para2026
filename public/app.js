@@ -1,0 +1,230 @@
+const $ = (id) => document.getElementById(id);
+let filter = 'pending';
+let sending = false;
+let waState = 'loading';
+
+const STATE_LABEL = {
+  ready: 'Conectado',
+  qr: 'Aguardando leitura do QR Code',
+  loading: 'Carregando WhatsApp...',
+  starting: 'Abrindo navegador...',
+  stopped: 'Desconectado',
+  error: 'Erro',
+};
+const STATUS_LABEL = { pending: 'Pendente', sent: 'Enviado', failed: 'Falhou' };
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, {
+    ...opts,
+    headers: opts.body && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+  return data;
+}
+
+let toastTimer;
+function toast(msg, isError = false) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.className = isError ? 'error' : '';
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => (el.hidden = true), isError ? 6000 : 3500);
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function formatPhone(p) {
+  const m = p.match(/^55(\d{2})(\d{4,5})(\d{4})$/);
+  return m ? `+55 (${m[1]}) ${m[2]}-${m[3]}` : '+' + p;
+}
+
+// ---- Status / QR ----
+async function refreshStatus() {
+  try {
+    const s = await api('/api/status');
+    waState = s.state;
+    const badge = $('badge');
+    badge.textContent = STATE_LABEL[s.state] || s.state;
+    badge.className = 'badge ' + s.state;
+
+    const qr = $('qr');
+    const msg = $('conn-msg');
+    if (s.state === 'qr' && s.qr) {
+      qr.src = s.qr;
+      qr.hidden = false;
+      msg.textContent = 'Abra o WhatsApp no celular → Aparelhos conectados → Conectar aparelho, e leia o QR Code:';
+    } else {
+      qr.hidden = true;
+      msg.textContent =
+        s.state === 'ready' ? '✅ WhatsApp conectado. Pode enviar.' :
+        s.state === 'error' ? '❌ ' + (s.error || 'Erro ao iniciar') + ' — clique em Reconectar.' :
+        STATE_LABEL[s.state] || s.state;
+    }
+    $('card-conn').dataset.state = s.state;
+    renderCounts(s.counts);
+    updateNextButton();
+  } catch {
+    $('badge').textContent = 'Servidor offline';
+    $('badge').className = 'badge error';
+  }
+}
+
+function renderCounts(c) {
+  $('c-pending').textContent = c.pending;
+  $('c-sent').textContent = c.sent;
+  $('c-failed').textContent = c.failed;
+  $('next-info').textContent = c.pending
+    ? `${c.pending} número(s) aguardando. Clique uma vez para cada envio.`
+    : 'Nenhum número pendente.';
+}
+
+function updateNextButton() {
+  const btn = $('btn-next');
+  btn.disabled = sending || waState !== 'ready';
+  btn.textContent = sending ? 'Enviando...' : waState === 'ready' ? 'Enviar para o próximo pendente' : 'Conecte o WhatsApp para enviar';
+  document.querySelectorAll('.btn-send').forEach((b) => (b.disabled = sending || waState !== 'ready'));
+}
+
+// ---- Mensagem ----
+async function loadMessage() {
+  const m = await api('/api/message');
+  $('text').value = m.text || '';
+  showImage(m.image);
+}
+
+function showImage(url) {
+  $('image-preview').hidden = !url;
+  $('no-image').hidden = !!url;
+  $('btn-remove-image').hidden = !url;
+  if (url) $('image-preview').src = url + '?t=' + Date.now();
+}
+
+$('btn-save-text').onclick = async () => {
+  await api('/api/message', { method: 'PUT', body: JSON.stringify({ text: $('text').value }) });
+  $('text-saved').textContent = 'Salvo ✓';
+  setTimeout(() => ($('text-saved').textContent = ''), 2000);
+};
+
+$('btn-pick-image').onclick = () => $('image-input').click();
+$('image-input').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const r = await api('/api/message/image', { method: 'POST', body: fd });
+    showImage(r.image);
+    toast('Imagem salva');
+  } catch (err) {
+    toast(err.message, true);
+  }
+  e.target.value = '';
+};
+$('btn-remove-image').onclick = async () => {
+  await api('/api/message/image', { method: 'DELETE' });
+  showImage(null);
+};
+
+// ---- Contatos ----
+$('btn-add').onclick = async () => {
+  const text = $('numbers').value;
+  if (!text.trim()) return;
+  const r = await api('/api/contacts', { method: 'POST', body: JSON.stringify({ text }) });
+  let msg = `${r.added} adicionado(s)`;
+  if (r.existing) msg += `, ${r.existing} já estava(m) na lista (não duplicados)`;
+  if (r.invalid.length) msg += `, ${r.invalid.length} inválido(s): ${r.invalid.join(' | ')}`;
+  $('add-result').textContent = msg;
+  $('numbers').value = r.invalid.join('\n');
+  loadContacts();
+};
+
+async function loadContacts() {
+  const { contacts, counts } = await api('/api/contacts?status=' + filter);
+  renderCounts(counts);
+  $('empty').hidden = contacts.length > 0;
+  $('rows').innerHTML = contacts
+    .map((c) => {
+      const actions = [];
+      if (c.status !== 'sent') actions.push(`<button class="small btn-send" data-send="${c.id}">Enviar</button>`);
+      if (c.status !== 'pending') actions.push(`<button class="small secondary" data-reset="${c.id}">${c.status === 'sent' ? 'Reenviar' : 'Voltar p/ pendente'}</button>`);
+      actions.push(`<button class="small danger" data-del="${c.id}" title="Remover">✕</button>`);
+      return `<tr id="row-${c.id}">
+        <td>${esc(formatPhone(c.phone))}</td>
+        <td>${esc(c.name || '')}</td>
+        <td><span class="st ${c.status}">${STATUS_LABEL[c.status]}</span>${c.error ? `<span class="err">${esc(c.error)}</span>` : ''}</td>
+        <td>${esc(c.sent_at || '')}</td>
+        <td class="actions">${actions.join('')}</td>
+      </tr>`;
+    })
+    .join('');
+  updateNextButton();
+}
+
+async function doSend(url, rowId) {
+  if (sending) return;
+  sending = true;
+  updateNextButton();
+  if (rowId) $('row-' + rowId)?.classList.add('sending');
+  try {
+    const r = await api(url, { method: 'POST', body: JSON.stringify({}) });
+    toast(`✅ Enviado para ${formatPhone(r.contact.phone)}${r.contact.name ? ' (' + r.contact.name + ')' : ''}`);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    sending = false;
+    await loadContacts();
+    refreshStatus();
+  }
+}
+
+$('btn-next').onclick = () => doSend('/api/send-next');
+
+$('rows').onclick = async (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.send) return doSend(`/api/contacts/${b.dataset.send}/send`, b.dataset.send);
+  if (b.dataset.reset) {
+    await api(`/api/contacts/${b.dataset.reset}/reset`, { method: 'POST' });
+    return loadContacts();
+  }
+  if (b.dataset.del && confirm('Remover este número da lista?')) {
+    await api(`/api/contacts/${b.dataset.del}`, { method: 'DELETE' });
+    loadContacts();
+  }
+};
+
+$('tabs').onclick = (e) => {
+  const b = e.target.closest('button[data-status]');
+  if (!b) return;
+  filter = b.dataset.status;
+  document.querySelectorAll('#tabs button[data-status]').forEach((x) => x.classList.toggle('active', x === b));
+  loadContacts();
+};
+
+$('btn-clear').onclick = async () => {
+  if (!confirm('Remover todos os números pendentes e com falha? (Os já enviados continuam no histórico)')) return;
+  const r = await api('/api/contacts', { method: 'DELETE' });
+  toast(`${r.removed} removido(s)`);
+  loadContacts();
+};
+
+// ---- Conexão ----
+$('btn-restart').onclick = async () => {
+  toast('Reiniciando navegador...');
+  api('/api/whatsapp/restart', { method: 'POST' }).catch((e) => toast(e.message, true));
+  setTimeout(refreshStatus, 500);
+};
+$('btn-logout').onclick = async () => {
+  if (!confirm('Desconectar o WhatsApp atual? Será necessário ler o QR Code de novo.')) return;
+  api('/api/whatsapp/logout', { method: 'POST' }).catch((e) => toast(e.message, true));
+  setTimeout(refreshStatus, 500);
+};
+
+loadMessage();
+loadContacts();
+refreshStatus();
+setInterval(refreshStatus, 2500);
