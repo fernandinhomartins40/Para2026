@@ -59,7 +59,7 @@ A imagem é **sempre construída no GitHub Actions** e publicada no GHCR (`ghcr.
 
 | Workflow | Quando roda | O que faz |
 |---|---|---|
-| `.github/workflows/deploy.yml` | push na `main` ou manual | Build no GitHub → push no GHCR → SSH na VPS → pull e sobe |
+| `.github/workflows/deploy.yml` | push na `main` ou manual | Jobs separados no GitHub: `build-base` (Node + Chromium) e `build-deps` (node_modules) em paralelo → `build-app` (imagem final) → `deploy` (SSH na VPS, pull e sobe) |
 | `.github/workflows/redeploy.yml` | manual | Sobe de novo `latest` ou faz rollback para o SHA de um commit (só pull) |
 
 - Único secret necessário: **`VPS_PASSWORD`** (senha SSH do `root@72.60.10.108`).
@@ -77,6 +77,7 @@ src/whatsapp.js   Automação do WhatsApp Web (Playwright)
 src/db.js         SQLite (contatos, histórico de envios, configurações)
 src/phone.js      Normalização e leitura da lista de números
 public/           Interface web
+docker/            Dockerfiles das imagens base (Chromium) e deps (node_modules)
 scripts/vps-deploy.sh  Executado na VPS pelos workflows (pull + up)
 data/             Criado em tempo de execução (banco, imagem, sessão) — não versionado
 ```

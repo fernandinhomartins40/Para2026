@@ -1,6 +1,6 @@
 name: Build and Deploy (GHCR -> VPS)
 
-# A imagem é construída SOMENTE no runner do GitHub e publicada no GHCR.
+# As imagens são construídas SOMENTE nos runners do GitHub (jobs separados) e publicadas no GHCR.
 # A VPS nunca compila: o GitHub entra por SSH (secret VPS_PASSWORD), faz pull e sobe o container.
 # Sem domínio: acesso por http://VPS_HOST:APP_PORT
 
@@ -30,7 +30,10 @@ env:
   SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
 
 jobs:
-  build:
+  # Build separado em 3 jobs. base e deps rodam em paralelo; app junta os dois.
+
+  # 1) Node + Chromium do Playwright (pesado, muda pouco, fica em cache no GHCR)
+  build-base:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,13 +49,81 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push
+      - name: Versão do Playwright (package-lock.json)
+        id: pw
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push base (Node + Chromium)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/base.Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}-base:latest
+            ${{ env.IMAGE }}-base:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.IMAGE }}-base:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}-base:buildcache,mode=max
+          provenance: false
+          sbom: false
+          build-args: |
+            PLAYWRIGHT_VERSION=${{ steps.pw.outputs.version }}
+
+  # 2) node_modules de produção (compila better-sqlite3 se precisar)
+  build-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push deps (node_modules)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/deps.Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}-deps:latest
+            ${{ env.IMAGE }}-deps:${{ github.sha }}
+          cache-from: type=registry,ref=${{ env.IMAGE }}-deps:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}-deps:buildcache,mode=max
+          provenance: false
+          sbom: false
+
+  # 3) Imagem final = base + deps + código da aplicação
+  build-app:
+    needs: [build-base, build-deps]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push app
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile
           push: true
-          # `latest` + SHA do commit (permite rollback pelo redeploy.yml)
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ github.sha }}
@@ -60,9 +131,13 @@ jobs:
           cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max
           provenance: false
           sbom: false
+          build-args: |
+            BASE_IMAGE=${{ env.IMAGE }}-base:${{ github.sha }}
+            DEPS_IMAGE=${{ env.IMAGE }}-deps:${{ github.sha }}
 
+  # 4) VPS só faz pull da imagem final
   deploy:
-    needs: build
+    needs: build-app
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

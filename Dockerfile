@@ -1,4 +1,11 @@
-FROM node:22-bookworm-slim
+# Imagem final da aplicação: junta a base (Chromium) com o node_modules já compilado.
+# BASE_IMAGE e DEPS_IMAGE são passados pelo workflow com a tag do commit.
+ARG BASE_IMAGE=ghcr.io/fernandinhomartins40/para2026-whatsapp-base:latest
+ARG DEPS_IMAGE=ghcr.io/fernandinhomartins40/para2026-whatsapp-deps:latest
+
+FROM ${DEPS_IMAGE} AS deps
+
+FROM ${BASE_IMAGE}
 
 ENV NODE_ENV=production \
     TZ=America/Sao_Paulo \
@@ -9,15 +16,8 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends tzdata ca-certificates fonts-noto-color-emoji \
- && rm -rf /var/lib/apt/lists/*
-
+COPY --from=deps /app/node_modules ./node_modules
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev \
- && npx playwright install --with-deps chromium \
- && rm -rf /var/lib/apt/lists/* /root/.npm
-
 COPY src ./src
 COPY public ./public
 
