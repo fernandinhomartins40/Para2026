@@ -23,16 +23,6 @@ const app = express();
 
 app.get('/health', (req, res) => res.json({ ok: true, whatsapp: wa.getStatus().state }));
 
-// Senha opcional (HTTP Basic Auth): ativa só se BASIC_AUTH_USER e BASIC_AUTH_PASS estiverem definidos.
-const { BASIC_AUTH_USER, BASIC_AUTH_PASS } = process.env;
-if (BASIC_AUTH_USER && BASIC_AUTH_PASS) {
-  const expected = 'Basic ' + Buffer.from(`${BASIC_AUTH_USER}:${BASIC_AUTH_PASS}`).toString('base64');
-  app.use((req, res, next) => {
-    if (req.headers.authorization === expected) return next();
-    res.set('WWW-Authenticate', 'Basic realm="Envio WhatsApp", charset="UTF-8"').status(401).send('Acesso restrito');
-  });
-}
-
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));

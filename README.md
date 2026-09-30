@@ -55,22 +55,19 @@ Exemplo (Windows PowerShell): `$env:HEADLESS="false"; npm start`
 
 ## Deploy na VPS (Docker, sem domínio)
 
-A imagem é **sempre construída no GitHub Actions** e publicada no GHCR (`ghcr.io/fernandinhomartins40/para2026-whatsapp`). A VPS **nunca compila**: só faz `pull` e sobe o container.
+A imagem é **sempre construída no GitHub Actions** e publicada no GHCR (`ghcr.io/fernandinhomartins40/para2026-whatsapp`). A VPS **nunca compila**: o GitHub entra nela por SSH, faz `pull` e sobe o container.
 
 | Workflow | Quando roda | O que faz |
 |---|---|---|
-| `.github/workflows/deploy.yml` | push na `main` ou manual | Build no GitHub → push no GHCR → VPS faz pull e sobe |
+| `.github/workflows/deploy.yml` | push na `main` ou manual | Build no GitHub → push no GHCR → SSH na VPS → pull e sobe |
 | `.github/workflows/redeploy.yml` | manual | Sobe de novo `latest` ou faz rollback para o SHA de um commit (só pull) |
 
-- Porta no host: **47815** (variável `APP_PORT` nos dois workflows). Acesso: `http://IP_DA_VPS:47815`
-- Antes de subir, o workflow confere se a porta já está em uso por outro container/processo e aborta se estiver.
-- Na VPS: código em `/opt/para2026`, container `para2026-whatsapp`, volume `para2026_data` (banco, imagem e sessão do WhatsApp; sobrevive aos deploys).
-- A limpeza de imagens remove só versões antigas **desta** imagem (mantém a atual e a anterior); nunca faz `prune -a`.
-
-**Pré-requisitos (uma vez):**
-1. Registrar um runner self-hosted na VPS **para este repositório** (Settings → Actions → Runners → New self-hosted runner). Em conta pessoal o runner é por repositório, então o runner que já existe para outro repositório não pega os jobs deste.
-2. Liberar a porta no firewall da VPS, se houver (ex.: `ufw allow 47815/tcp`).
-3. **Recomendado:** criar os secrets `BASIC_AUTH_USER` e `BASIC_AUTH_PASS` (Settings → Secrets and variables → Actions). Com eles, o navegador pede usuário e senha antes de abrir a página. Sem eles, qualquer pessoa que descobrir `IP:porta` controla o seu WhatsApp.
+- Único secret necessário: **`VPS_PASSWORD`** (senha SSH do `root@72.60.10.108`).
+- Porta no host: **47815** (variável `APP_PORT` nos dois workflows). Acesso: `http://72.60.10.108:47815`
+- O script `scripts/vps-deploy.sh` confere antes se a porta está ocupada por outro container/processo e aborta se estiver.
+- Na VPS: arquivos em `/opt/para2026`, container `para2026-whatsapp`, volume `para2026_data` (banco, imagem e sessão do WhatsApp; sobrevive aos deploys).
+- A limpeza remove só versões antigas **desta** imagem (mantém a atual e a anterior); nunca faz `prune -a`.
+- Se a VPS tiver firewall, libere a porta: `ufw allow 47815/tcp`.
 
 ## Estrutura
 
@@ -80,6 +77,7 @@ src/whatsapp.js   Automação do WhatsApp Web (Playwright)
 src/db.js         SQLite (contatos, histórico de envios, configurações)
 src/phone.js      Normalização e leitura da lista de números
 public/           Interface web
+scripts/vps-deploy.sh  Executado na VPS pelos workflows (pull + up)
 data/             Criado em tempo de execução (banco, imagem, sessão) — não versionado
 ```
 

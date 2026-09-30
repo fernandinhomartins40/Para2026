@@ -1,16 +1,15 @@
 name: Redeploy / Rollback (pull only)
 
 # Sobe na VPS uma imagem JÁ CONSTRUÍDA no GitHub (GHCR), sem novo build.
-# A VPS nunca compila. Usos:
-#   - reiniciar/recriar o container com a versão atual (release = latest)
-#   - rollback para um commit anterior (release = SHA completo do commit)
-# O build acontece apenas no deploy.yml, no runner do GitHub.
+#   - release = latest -> recria o container com a versão atual
+#   - release = SHA completo de um commit -> rollback para aquela versão
+# Usa apenas o secret VPS_PASSWORD (SSH).
 
 "on":
   workflow_dispatch:
     inputs:
       release:
-        description: "Tag da imagem no GHCR: 'latest' ou o SHA completo de um commit já publicado"
+        description: "Tag da imagem: 'latest' ou o SHA completo de um commit já publicado"
         required: true
         default: latest
 
@@ -23,57 +22,43 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/fernandinhomartins40/para2026-whatsapp
-  # Mesma porta alta do deploy.yml
+  VPS_HOST: 72.60.10.108
+  VPS_USER: root
   APP_PORT: "47815"
+  SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
+      - name: Validar release
+        env:
+          RELEASE: ${{ inputs.release }}
+        run: |
+          echo "$RELEASE" | grep -Eq '^(latest|[0-9a-f]{40})$' \
+            || { echo "release deve ser 'latest' ou um SHA completo (40 caracteres)"; exit 1; }
+
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Redeploy on VPS (pull only, sem build)
+      - name: Instalar sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Enviar compose e script para a VPS
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GHCR_USER: ${{ github.actor }}
-          RELEASE: ${{ inputs.release }}
-          BRANCH: ${{ github.ref_name }}
-          BASIC_AUTH_USER: ${{ secrets.BASIC_AUTH_USER }}
-          BASIC_AUTH_PASS: ${{ secrets.BASIC_AUTH_PASS }}
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
         run: |
-          set -e
-          export APP_DIR="/opt/para2026"
+          sshpass -e ssh $SSH_OPTS "${VPS_USER}@${VPS_HOST}" "mkdir -p /opt/para2026/scripts"
+          sshpass -e scp $SSH_OPTS docker-compose.vps.yml "${VPS_USER}@${VPS_HOST}:/opt/para2026/"
+          sshpass -e scp $SSH_OPTS scripts/vps-deploy.sh "${VPS_USER}@${VPS_HOST}:/opt/para2026/scripts/"
 
-          if ! echo "$RELEASE" | grep -Eq '^(latest|[0-9a-f]{40})$'; then
-            echo "ERRO: release deve ser 'latest' ou um SHA completo (40 caracteres)"
-            exit 1
-          fi
-
-          echo "=== Sincronizando código em $APP_DIR (compose e scripts) ==="
-          . "$GITHUB_WORKSPACE/scripts/vps-deploy-lib.sh"
-          sync_repo "$BRANCH"
-
-          echo "=== Configurando .env (RELEASE=${RELEASE}) ==="
-          write_env
-          set_env_var RELEASE "${RELEASE}"
-
-          echo "=== Verificando porta ${APP_PORT} ==="
-          check_port "${APP_PORT}"
-
-          echo "=== Autenticando no GHCR ==="
-          echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-
-          echo "=== Baixando imagem ${IMAGE}:${RELEASE} (a VPS NÃO compila) ==="
-          docker-compose -f docker-compose.vps.yml pull whatsapp
-
-          echo "=== Recriando container ==="
-          docker-compose -f docker-compose.vps.yml up -d --no-build --force-recreate whatsapp
-          wait_healthy 30 5
-
-          echo "=== Healthcheck final ==="
-          final_check "${APP_PORT}"
-
-          docker image prune -f || true
-          echo "=== Redeploy concluído (RELEASE=${RELEASE}) ==="
+      - name: Redeploy na VPS (pull only, sem build)
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE: ${{ inputs.release }}
+        run: |
+          # O token do GHCR vai pelo stdin, não pela linha de comando
+          echo "$GHCR_TOKEN" | sshpass -e ssh $SSH_OPTS "${VPS_USER}@${VPS_HOST}" \
+            "RELEASE='${RELEASE}' APP_PORT='${APP_PORT}' GHCR_USER='${{ github.actor }}' bash /opt/para2026/scripts/vps-deploy.sh"
+          echo "Aplicação: http://${VPS_HOST}:${APP_PORT}"
