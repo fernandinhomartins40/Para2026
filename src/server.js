@@ -37,7 +37,8 @@ app.get('/health', (req, res) => res.json({ ok: true, browsers: wa.stats() }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 app.use(auth.loadUser);
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// no-cache: o navegador sempre confere se há versão nova (evita tela antiga após deploy).
+app.use(express.static(path.join(__dirname, '..', 'public'), { setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') }));
 
 const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((err) => res.status(400).json({ error: err.message }));

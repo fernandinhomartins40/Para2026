@@ -29,6 +29,7 @@ Abra http://localhost:3000, crie sua conta em **Criar conta** e:
 
 1. **Conexão**: leia o QR Code com o celular (WhatsApp → Aparelhos conectados → Conectar aparelho).
 2. **Mensagem**: escreva o texto e clique em *Salvar texto*. Escolha a imagem (opcional). Texto e imagem vão em **duas mensagens separadas**, na ordem escolhida em *Ordem de envio* (padrão: texto primeiro, depois a imagem).
+   - `{periodo}` vira **"Bom dia"** (5h–11h59), **"Boa tarde"** (12h–17h59) ou **"Boa noite"** (18h–4h59), conforme o horário de Brasília no momento do envio. Ex.: `{periodo}, {nome}! Tudo bem?` → "Boa tarde, Maria! Tudo bem?".
    - `{nome}` (ou `{primeiro_nome}`) vira o **primeiro nome da lista**, com a primeira letra maiúscula ("MARIA SILVA" → "Maria"); `{nome_completo}` vira o nome inteiro. O nome vem só da lista — coloque nome e número em cada linha. Abaixo do botão de envio aparece a **prévia** exata da próxima mensagem.
 3. **Adicionar números**: um por linha, com ou sem nome, em qualquer ordem e separador:
    ```

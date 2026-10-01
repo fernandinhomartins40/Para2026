@@ -33,8 +33,8 @@
 
       <div class="card">
         <h2>Mensagem</h2>
-        <label for="text">Texto: <code>{nome}</code> vira o <b>primeiro nome</b> da lista (ex.: "Maria"); <code>{nome_completo}</code> vira o nome inteiro</label>
-        <textarea id="text" rows="7" placeholder="Olá {nome}, tudo bem?"></textarea>
+        <label for="text">Variáveis: <code>{periodo}</code> vira "Bom dia", "Boa tarde" ou "Boa noite" (horário do envio) · <code>{nome}</code> vira o <b>primeiro nome</b> da lista · <code>{nome_completo}</code> o nome inteiro</label>
+        <textarea id="text" rows="7" placeholder="{periodo}, {nome}! Tudo bem?"></textarea>
         <div class="row">
           <button id="btn-save-text">Salvar texto</button>
           <span id="text-saved" class="muted"></span>
