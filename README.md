@@ -1,8 +1,8 @@
 # Envio Manual WhatsApp
 
-Aplicação web **multiusuário com login Google** para enviar **texto + imagem** pelo WhatsApp Web, **um número por vez, com um clique para cada envio** — nada é disparado automaticamente para a lista toda.
+Aplicação web **multiusuário com cadastro próprio (e-mail e senha)** para enviar **texto + imagem** pelo WhatsApp Web, **um número por vez, com um clique para cada envio** — nada é disparado automaticamente para a lista toda.
 
-- **Login com Google**: qualquer conta Google pode entrar. Cada usuário tem **seu próprio WhatsApp, mensagem, imagem, lista de números e histórico** — um não vê nada do outro.
+- **Cadastro e login com e-mail e senha** (senhas com hash scrypt; 10 tentativas erradas bloqueiam por 15 min). Cada usuário tem **seu próprio WhatsApp, mensagem, imagem, lista de números e histórico** — um não vê nada do outro.
 - Conecta ao WhatsApp Web com **Playwright** (um Chromium por usuário conectado) e mostra o **QR Code** na própria página.
 - Você cola a lista de números, e clica em **"Enviar para o próximo pendente"** (ou em "Enviar" numa linha específica).
 - **Banco SQLite** guarda para quem já foi enviado (data/hora), falhas e histórico. Números repetidos não são duplicados, e um número já enviado não recebe de novo a menos que você clique em "Reenviar".
@@ -22,13 +22,10 @@ npx playwright install chromium
 ## Uso
 
 ```bash
-# Desenvolvimento local sem Google (entra digitando um e-mail):
-DEV_LOGIN=true npm start
-# Com Google (precisa de HTTPS ou http://localhost como origem autorizada no Client ID):
-GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com npm start
+npm start
 ```
 
-Abra http://localhost:3000, entre e:
+Abra http://localhost:3000, crie sua conta em **Criar conta** e:
 
 1. **Conexão**: leia o QR Code com o celular (WhatsApp → Aparelhos conectados → Conectar aparelho).
 2. **Mensagem**: escreva o texto e clique em *Salvar texto*. Escolha a imagem (opcional). A imagem é enviada com o texto como legenda; sem imagem, vai só o texto.
@@ -49,8 +46,8 @@ Números inválidos/sem WhatsApp ficam como **Falhou** com o motivo; você pode 
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `PORT` | `3000` | Porta do servidor web |
-| `GOOGLE_CLIENT_ID` | — | Client ID OAuth do Google (público; não há client secret) |
-| `DEV_LOGIN` | `false` | `true` libera login só com e-mail, **apenas para desenvolvimento** |
+| `ALLOW_REGISTRATION` | `true` | `false` bloqueia novos cadastros (só quem já tem conta entra) |
+| `GOOGLE_CLIENT_ID` | — | Opcional: mostra também "Entrar com Google" (precisa de Client ID OAuth do Google) |
 | `MAX_BROWSERS` | `4` | Máximo de WhatsApps (Chromium) abertos ao mesmo tempo; quem passar disso fica "Na fila" |
 | `IDLE_MINUTES` | `15` | Fecha o navegador de quem ficou esse tempo sem abrir a página (a sessão continua salva) |
 | `HEADLESS` | `true` | Use `false` para ver a janela do Chromium enquanto envia |
@@ -77,19 +74,14 @@ A imagem é **sempre construída no GitHub Actions** e publicada no GHCR (`ghcr.
 - A limpeza remove só versões antigas **desta** imagem (mantém a atual e a anterior); nunca faz `prune -a`.
 - Se a VPS tiver firewall, libere a porta: `ufw allow 47815/tcp`.
 
-## Login com Google (configuração única)
+## Acesso e contas
 
-O Google só aceita login em páginas **HTTPS com domínio** (ou `http://localhost`). Por isso a aplicação precisa ser acessada por um subdomínio, ex.: `https://zap.seudominio.com.br`.
+Endereço: **https://zap.fuselink.com.br** (definido em `DOMAIN` nos workflows). O deploy configura sozinho o nginx do host e o certificado HTTPS: cria só o arquivo `/etc/nginx/sites-available/para2026`, emite o certificado com `certbot --webroot` (renovação automática) e encaminha para `127.0.0.1:47815`. Toda mudança passa por `nginx -t` antes do `reload` e é desfeita se falhar — os sites das outras aplicações não são tocados.
 
-**1. Subdomínio → aplicação (automático).** Crie o registro DNS `A` do subdomínio apontando para a VPS e coloque-o em `DOMAIN` nos workflows (atual: `zap.fuselink.com.br`). O deploy cria só o arquivo `/etc/nginx/sites-available/para2026` no nginx do host, emite o certificado com `certbot --webroot` (renovação automática pelo certbot) e encaminha para `127.0.0.1:47815`. Toda mudança passa por `nginx -t` antes do `reload`; se falhar, é desfeita — os sites das outras aplicações não são tocados.
-
-**2. Client ID do Google.** Em https://console.cloud.google.com → *APIs e serviços* → *Tela de consentimento OAuth* (tipo **Externo**, publique o app) → *Credenciais* → *Criar credenciais* → *ID do cliente OAuth* → tipo **Aplicativo da Web**:
-- **Origens JavaScript autorizadas**: `https://zap.seudominio.com.br`
-- Não precisa de URI de redirecionamento nem de client secret.
-
-**3.** Coloque o Client ID em `GOOGLE_CLIENT_ID` nos dois workflows (`deploy.yml` e `redeploy.yml`) e faça o deploy. Endereço: https://zap.fuselink.com.br
-
-> **Primeiro login:** os dados da versão anterior (lista, mensagem, imagem e sessão do WhatsApp já conectada) vão para **o primeiro usuário que entrar**. Entre você primeiro.
+- Qualquer pessoa pode **criar uma conta** com nome, e-mail e senha. Para fechar novos cadastros, defina `ALLOW_REGISTRATION=false` no `docker-compose.vps.yml`.
+- Cada usuário pode trocar a senha em **Alterar senha**. Não há "esqueci a senha" por e-mail (não há serviço de e-mail configurado).
+- **Primeiro cadastro:** os dados da versão anterior (lista, mensagem, imagem e sessão do WhatsApp já conectada) vão para **a primeira conta criada**. Crie a sua primeiro.
+- Login com Google é opcional: só aparece se `GOOGLE_CLIENT_ID` for preenchido nos workflows.
 
 ## Estrutura
 
@@ -97,7 +89,7 @@ O Google só aceita login em páginas **HTTPS com domínio** (ou `http://localho
 src/server.js     API Express + arquivos estáticos
 src/whatsapp.js   Automação do WhatsApp Web (Playwright), um cliente por usuário
 src/db.js         SQLite (usuários, sessões, contatos, histórico e configurações por usuário)
-src/auth.js       Login com Google (validação do ID token) e sessão por cookie
+src/auth.js       Cadastro/login com e-mail e senha (scrypt), limite de tentativas, sessão por cookie e Google opcional
 src/phone.js      Normalização e leitura da lista de números
 public/           Interface web
 docker/            Dockerfiles das imagens base (Chromium) e deps (node_modules)

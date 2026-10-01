@@ -25,7 +25,7 @@ env:
   VPS_HOST: 72.60.10.108
   VPS_USER: root
   APP_PORT: "47815"
-  # Client ID OAuth do Google (termina em .apps.googleusercontent.com). É público, não é secret.
+  # Opcional: Client ID OAuth do Google para mostrar também "Entrar com Google". Vazio = só cadastro próprio.
   GOOGLE_CLIENT_ID: ""
   # Subdomínio (DNS A -> VPS). O deploy configura o nginx do host e o certificado HTTPS.
   DOMAIN: zap.fuselink.com.br

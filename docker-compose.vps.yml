@@ -16,7 +16,9 @@ services:
       - DATA_DIR=/app/data
       - TZ=America/Sao_Paulo
       - DEFAULT_COUNTRY_CODE=${DEFAULT_COUNTRY_CODE:-55}
-      # Login com Google (Client ID é público, vem do workflow). Vazio = ninguém consegue logar.
+      # Cadastro próprio (e-mail e senha). "false" bloqueia novos cadastros.
+      - ALLOW_REGISTRATION=${ALLOW_REGISTRATION:-true}
+      # Opcional: login com Google além do cadastro próprio (Client ID público, vem do workflow).
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       # Multiusuário: um Chromium por usuário conectado (~300-400 MB cada).
       - MAX_BROWSERS=${MAX_BROWSERS:-4}

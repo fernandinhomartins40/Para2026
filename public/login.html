@@ -9,16 +9,34 @@
 <body class="login-page">
   <div class="card login-card">
     <h1>Envio Manual WhatsApp</h1>
-    <p class="muted">Entre com sua conta Google. Cada conta tem seu próprio WhatsApp, lista de números e histórico.</p>
-    <div id="google-btn"></div>
-    <form id="dev-form" hidden>
-      <p class="muted">Modo desenvolvimento (sem Google):</p>
-      <input type="email" id="dev-email" placeholder="seu@email.com" required>
+    <p class="muted">Cada conta tem seu próprio WhatsApp, lista de números e histórico.</p>
+
+    <div class="tabs login-tabs" id="login-tabs">
+      <button type="button" data-tab="login" class="active">Entrar</button>
+      <button type="button" data-tab="register" id="tab-register">Criar conta</button>
+    </div>
+
+    <form id="form-login" class="auth-form">
+      <input type="email" name="email" placeholder="E-mail" autocomplete="email" required>
+      <input type="password" name="password" placeholder="Senha" autocomplete="current-password" required>
       <button type="submit">Entrar</button>
     </form>
+
+    <form id="form-register" class="auth-form" hidden>
+      <input type="text" name="name" placeholder="Seu nome" autocomplete="name" required>
+      <input type="email" name="email" placeholder="E-mail" autocomplete="email" required>
+      <input type="password" name="password" placeholder="Senha (mínimo 6 caracteres)" autocomplete="new-password" minlength="6" required>
+      <input type="password" name="password2" placeholder="Repita a senha" autocomplete="new-password" minlength="6" required>
+      <button type="submit">Criar conta</button>
+    </form>
+
+    <div id="google-area" hidden>
+      <p class="muted divider">ou</p>
+      <div id="google-btn"></div>
+    </div>
+
     <p id="login-error" class="err"></p>
   </div>
-  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script src="login.js"></script>
 </body>
 </html>

@@ -12,6 +12,7 @@
     <div class="header-right">
       <span id="badge" class="badge">...</span>
       <span id="user" class="user"><img id="user-pic" alt="" hidden><span id="user-name"></span></span>
+      <button id="btn-password" class="secondary small">Alterar senha</button>
       <button id="btn-logout-app" class="secondary small">Sair</button>
     </div>
   </header>
@@ -96,6 +97,20 @@
       </div>
     </section>
   </main>
+
+  <dialog id="dlg-password">
+    <form id="form-password" class="auth-form">
+      <h2>Alterar senha</h2>
+      <input type="password" name="current" id="pw-current" placeholder="Senha atual" autocomplete="current-password">
+      <input type="password" name="password" placeholder="Nova senha (mínimo 6 caracteres)" autocomplete="new-password" minlength="6" required>
+      <input type="password" name="password2" placeholder="Repita a nova senha" autocomplete="new-password" minlength="6" required>
+      <p id="pw-error" class="err"></p>
+      <div class="row">
+        <button type="submit">Salvar</button>
+        <button type="button" class="secondary" id="pw-cancel">Cancelar</button>
+      </div>
+    </form>
+  </dialog>
 
   <div id="toast" hidden></div>
   <script src="app.js"></script>

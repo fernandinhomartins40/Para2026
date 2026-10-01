@@ -42,7 +42,7 @@ const wrap = (fn) => (req, res) =>
   Promise.resolve(fn(req, res)).catch((err) => res.status(400).json({ error: err.message }));
 
 // ---- Login ----
-app.get('/api/config', (req, res) => res.json({ googleClientId: auth.GOOGLE_CLIENT_ID, devLogin: auth.DEV_LOGIN }));
+app.get('/api/config', (req, res) => res.json({ googleClientId: auth.GOOGLE_CLIENT_ID, allowRegistration: auth.ALLOW_REGISTRATION }));
 
 // Arquivos da versão de usuário único (antes do login) vão para o primeiro usuário.
 function claimLegacyFiles(userId) {
@@ -60,26 +60,34 @@ function claimLegacyFiles(userId) {
   }
 }
 
-function finishLogin(req, res, profile) {
-  const { user, isFirst } = db.upsertUser(profile);
+function startSession(req, res, { user, isFirst }) {
   if (isFirst && db.claimLegacy(user.id)) claimLegacyFiles(user.id);
   auth.setSessionCookie(req, res, user.id);
   res.json({ ok: true });
 }
 
+app.post('/auth/register', (req, res) => {
+  try {
+    startSession(req, res, auth.register(req.body));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/auth/login', (req, res) => {
+  try {
+    const user = auth.login(req.body, req.ip);
+    startSession(req, res, { user, isFirst: false });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// Login com Google: opcional, só funciona com GOOGLE_CLIENT_ID definido.
 app.post('/auth/google', wrap(async (req, res) => {
   const profile = await auth.verifyGoogleCredential(req.body.credential);
-  finishLogin(req, res, profile);
+  startSession(req, res, db.upsertUser(profile));
 }));
-
-if (auth.DEV_LOGIN) {
-  console.warn('ATENÇÃO: DEV_LOGIN ativo — login sem Google. Não use em produção.');
-  app.post('/auth/dev', (req, res) => {
-    const email = String(req.body.email || '').trim().toLowerCase();
-    if (!/^\S+@\S+$/.test(email)) return res.status(400).json({ error: 'E-mail inválido' });
-    finishLogin(req, res, { sub: 'dev:' + email, email, name: email.split('@')[0] });
-  });
-}
 
 app.post('/auth/logout', (req, res) => {
   auth.logout(req, res);
@@ -90,8 +98,17 @@ app.post('/auth/logout', (req, res) => {
 app.use('/api', auth.requireUser);
 
 app.get('/api/me', (req, res) => {
-  const { id, email, name, picture } = req.user;
-  res.json({ id, email, name, picture });
+  const { id, email, name, picture, password_hash } = req.user;
+  res.json({ id, email, name, picture, hasPassword: !!password_hash });
+});
+
+app.post('/api/password', (req, res) => {
+  try {
+    auth.changePassword(req.user, req.body.current, req.body.password);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 function currentImagePath(userId) {
@@ -215,7 +232,6 @@ app.get('/api/history', (req, res) => res.json({ history: db.history(req.user.id
 
 app.listen(PORT, () => {
   console.log(`Aplicação rodando em http://localhost:${PORT}`);
-  if (!auth.GOOGLE_CLIENT_ID && !auth.DEV_LOGIN) console.warn('GOOGLE_CLIENT_ID não definido: ninguém conseguirá fazer login.');
 });
 
 process.on('SIGTERM', async () => { await wa.stopAll(); process.exit(0); });

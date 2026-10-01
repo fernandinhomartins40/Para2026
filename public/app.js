@@ -235,8 +235,29 @@ $('btn-logout-app').onclick = async () => {
   location.href = '/login.html';
 };
 
+$('btn-password').onclick = () => {
+  $('form-password').reset();
+  $('pw-error').textContent = '';
+  $('dlg-password').showModal();
+};
+$('pw-cancel').onclick = () => $('dlg-password').close();
+$('form-password').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData($('form-password'));
+  if (f.get('password') !== f.get('password2')) return ($('pw-error').textContent = 'As senhas não conferem.');
+  try {
+    await api('/api/password', { method: 'POST', body: JSON.stringify({ current: f.get('current'), password: f.get('password') }) });
+    $('dlg-password').close();
+    toast('Senha alterada');
+  } catch (err) {
+    $('pw-error').textContent = err.message;
+  }
+};
+
 (async () => {
   const me = await api('/api/me');
+  // Conta criada só pelo Google ainda não tem senha: não pede a atual.
+  $('pw-current').hidden = !me.hasPassword;
   $('user-name').textContent = me.name || me.email;
   $('user').title = me.email;
   if (me.picture) {

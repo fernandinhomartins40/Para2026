@@ -10,6 +10,7 @@
   --amber: #e0a100;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
 header { background: var(--green-dark); color: #fff; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 header h1 { font-size: 20px; margin: 0; }
@@ -85,6 +86,14 @@ tr.sending { background: #f3fbf8; }
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .login-card { max-width: 400px; width: 100%; text-align: center; }
 .login-card h1 { font-size: 22px; margin: 0 0 8px; color: var(--green-dark); }
-.login-card #google-btn { display: flex; justify-content: center; margin: 20px 0 8px; min-height: 44px; }
-.login-card input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; margin-bottom: 8px; }
+.login-card #google-btn { display: flex; justify-content: center; margin: 4px 0 8px; min-height: 44px; }
+.login-tabs { justify-content: center; margin: 16px 0 12px; }
+.auth-form { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+.auth-form input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.auth-form button[type=submit] { width: 100%; }
+.auth-form h2 { margin: 0 0 4px; font-size: 17px; }
+.divider { margin: 14px 0 8px; }
+dialog { border: 0; border-radius: 10px; padding: 18px; width: min(380px, calc(100vw - 32px)); box-shadow: 0 8px 30px rgba(0,0,0,.25); }
+dialog::backdrop { background: rgba(0,0,0,.35); }
+dialog .row button { flex: 1; }
 .login-card .err { max-width: none; margin-top: 10px; }

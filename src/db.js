@@ -25,13 +25,14 @@ if (hasTable('contacts') && !hasColumn('contacts', 'user_id')) {
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    google_sub TEXT NOT NULL UNIQUE,
-    email      TEXT NOT NULL,
-    name       TEXT,
-    picture    TEXT,
-    created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-    last_login TEXT
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    google_sub    TEXT UNIQUE,
+    email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    password_hash TEXT,
+    name          TEXT,
+    picture       TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    last_login    TEXT
   );
 
   CREATE TABLE IF NOT EXISTS sessions (
@@ -75,13 +76,41 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 `);
 
+// Versão anterior: users exigia google_sub e não tinha senha. Recria a tabela mantendo os ids.
+if (!hasColumn('users', 'password_hash')) {
+  db.pragma('foreign_keys = OFF');
+  db.exec(`
+    BEGIN;
+    CREATE TABLE users_new (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      google_sub    TEXT UNIQUE,
+      email         TEXT NOT NULL UNIQUE COLLATE NOCASE,
+      password_hash TEXT,
+      name          TEXT,
+      picture       TEXT,
+      created_at    TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      last_login    TEXT
+    );
+    INSERT OR IGNORE INTO users_new (id, google_sub, email, name, picture, created_at, last_login)
+      SELECT id, google_sub, email, name, picture, created_at, last_login FROM users;
+    DROP TABLE users;
+    ALTER TABLE users_new RENAME TO users;
+    COMMIT;
+  `);
+  db.pragma('foreign_keys = ON');
+}
+
 const SESSION_DAYS = 30;
 
 const stmts = {
   // usuários e sessões
   userBySub: db.prepare('SELECT * FROM users WHERE google_sub = ?'),
   userById: db.prepare('SELECT * FROM users WHERE id = ?'),
+  userByEmail: db.prepare('SELECT * FROM users WHERE email = ?'),
   insertUser: db.prepare('INSERT INTO users (google_sub, email, name, picture, last_login) VALUES (?, ?, ?, ?, datetime(\'now\', \'localtime\'))'),
+  insertLocalUser: db.prepare('INSERT INTO users (email, password_hash, name, last_login) VALUES (?, ?, ?, datetime(\'now\', \'localtime\'))'),
+  touchLogin: db.prepare('UPDATE users SET last_login = datetime(\'now\', \'localtime\') WHERE id = ?'),
+  setPassword: db.prepare('UPDATE users SET password_hash = ? WHERE id = ?'),
   updateUser: db.prepare('UPDATE users SET email = ?, name = ?, picture = ?, last_login = datetime(\'now\', \'localtime\') WHERE id = ?'),
   countUsers: db.prepare('SELECT COUNT(*) AS n FROM users'),
   insertSession: db.prepare('INSERT INTO sessions (token, user_id, expires_at) VALUES (?, ?, ?)'),
@@ -115,8 +144,23 @@ const upsertUser = db.transaction(({ sub, email, name, picture }) => {
     stmts.updateUser.run(email, name || null, picture || null, existing.id);
     return { user: stmts.userById.get(existing.id), isFirst: false };
   }
+  const byEmail = stmts.userByEmail.get(email);
+  if (byEmail) {
+    // Conta já criada com e-mail e senha: vincula o Google a ela.
+    db.prepare('UPDATE users SET google_sub = ? WHERE id = ?').run(sub, byEmail.id);
+    stmts.updateUser.run(email, byEmail.name || name || null, picture || null, byEmail.id);
+    return { user: stmts.userById.get(byEmail.id), isFirst: false };
+  }
   const isFirst = stmts.countUsers.get().n === 0;
   const r = stmts.insertUser.run(sub, email, name || null, picture || null);
+  return { user: stmts.userById.get(r.lastInsertRowid), isFirst };
+});
+
+// Cadastro com e-mail e senha. Retorna { user, isFirst } ou lança erro se o e-mail já existe.
+const createLocalUser = db.transaction(({ email, passwordHash, name }) => {
+  if (stmts.userByEmail.get(email)) throw new Error('Já existe uma conta com este e-mail. Use "Entrar".');
+  const isFirst = stmts.countUsers.get().n === 0;
+  const r = stmts.insertLocalUser.run(email, passwordHash, name || null);
   return { user: stmts.userById.get(r.lastInsertRowid), isFirst };
 });
 
@@ -182,6 +226,10 @@ function getSetting(userId, key, fallback = null) {
 module.exports = {
   DATA_DIR,
   upsertUser,
+  createLocalUser,
+  userByEmail: (email) => stmts.userByEmail.get(email),
+  touchLogin: (id) => stmts.touchLogin.run(id),
+  setPassword: (id, hash) => stmts.setPassword.run(hash, id),
   createSession,
   userBySession,
   deleteSession: (token) => stmts.deleteSession.run(token),
