@@ -1,0 +1,47 @@
+name: Diagnóstico do proxy da VPS (somente leitura)
+
+# Lista, SEM ALTERAR NADA, qual proxy atende as portas 80/443 da VPS e como os sites estão
+# configurados — para configurar o subdomínio zap.fuselink.com.br sem afetar as outras aplicações.
+
+"on":
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VPS_HOST: 72.60.10.108
+  VPS_USER: root
+  SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
+
+jobs:
+  diagnostico:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Instalar sshpass
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
+      - name: Coletar informações (read-only)
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          sshpass -e ssh $SSH_OPTS "${VPS_USER}@${VPS_HOST}" 'bash -s' <<'EOF'
+          echo "=== Quem escuta nas portas 80/443 ==="
+          (ss -ltnp 2>/dev/null || netstat -ltnp 2>/dev/null) | grep -E ':(80|443)\s' || true
+          echo; echo "=== Containers publicando 80/443 ==="
+          docker ps --format '{{.Names}}\t{{.Image}}\t{{.Ports}}' | grep -E '(:80->|:443->)' || echo "nenhum"
+          echo; echo "=== Binários disponíveis ==="
+          for b in nginx caddy traefik certbot apache2 httpd haproxy; do command -v $b >/dev/null && echo "$b: $(command -v $b)"; done
+          systemctl is-active nginx caddy apache2 traefik 2>/dev/null | paste -sd' ' || true
+          echo; echo "=== nginx (host) ==="
+          ls -la /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null || echo "sem /etc/nginx"
+          echo; echo "=== Onde aparece velomail / fuselink ==="
+          grep -rils 'velomail\|fuselink' /etc/nginx /etc/caddy /etc/traefik /opt/*/docker-compose*.yml /opt/*/*/docker-compose*.yml 2>/dev/null | head -20 || true
+          echo; echo "=== Trecho das configs encontradas ==="
+          for f in $(grep -rils 'velomail' /etc/nginx /etc/caddy /etc/traefik 2>/dev/null | head -3); do echo "--- $f"; grep -nE 'server_name|listen|proxy_pass|ssl_certificate|reverse_proxy|Host\(|default_server' "$f" | head -30; done
+          echo; echo "=== Certificados Let's Encrypt (só nomes) ==="
+          ls /etc/letsencrypt/live 2>/dev/null || echo "sem /etc/letsencrypt"
+          echo; echo "=== Labels de proxy em containers (traefik/caddy/nginx-proxy) ==="
+          docker ps -q | xargs -r docker inspect --format '{{.Name}} {{json .Config.Labels}}' | grep -iE 'traefik|caddy|virtual_host' | cut -c1-400 | head -20 || true
+          docker ps --format '{{.Names}}\t{{.Image}}' | grep -Ei 'nginx|traefik|caddy|proxy|velomail' || true
+          EOF
