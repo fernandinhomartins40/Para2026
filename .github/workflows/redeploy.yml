@@ -27,6 +27,8 @@ env:
   APP_PORT: "47815"
   # Client ID OAuth do Google (termina em .apps.googleusercontent.com). É público, não é secret.
   GOOGLE_CLIENT_ID: ""
+  # Subdomínio (DNS A -> VPS). O deploy configura o nginx do host e o certificado HTTPS.
+  DOMAIN: zap.fuselink.com.br
   SSH_OPTS: -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR
 
 jobs:
@@ -62,5 +64,5 @@ jobs:
         run: |
           # O token do GHCR vai pelo stdin, não pela linha de comando
           echo "$GHCR_TOKEN" | sshpass -e ssh $SSH_OPTS "${VPS_USER}@${VPS_HOST}" \
-            "RELEASE='${RELEASE}' APP_PORT='${APP_PORT}' GOOGLE_CLIENT_ID='${GOOGLE_CLIENT_ID}' GHCR_USER='${{ github.actor }}' bash /opt/para2026/scripts/vps-deploy.sh"
-          echo "Aplicação: http://${VPS_HOST}:${APP_PORT}"
+            "RELEASE='${RELEASE}' APP_PORT='${APP_PORT}' GOOGLE_CLIENT_ID='${GOOGLE_CLIENT_ID}' DOMAIN='${DOMAIN}' GHCR_USER='${{ github.actor }}' bash /opt/para2026/scripts/vps-deploy.sh"
+          echo "Aplicação: https://${DOMAIN}"

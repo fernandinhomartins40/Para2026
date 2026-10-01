@@ -42,6 +42,73 @@ set_env_var RELEASE "$RELEASE"
 # Client ID do Google (público). Vazio no workflow = mantém o que já estiver no .env da VPS.
 if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then set_env_var GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"; fi
 
+# ===== nginx do host + HTTPS (Let's Encrypt) para o subdomínio, se DOMAIN foi informado =====
+# Cria SÓ o arquivo deste app (sites-available/para2026); nunca altera os sites das outras aplicações.
+# Toda mudança passa por `nginx -t` antes do reload; se falhar, o arquivo é removido/restaurado.
+setup_nginx() {
+  local domain="$1" port="$2"
+  local site="/etc/nginx/sites-available/para2026"
+  local link="/etc/nginx/sites-enabled/para2026"
+  local webroot="/var/www/para2026-acme"
+  local cert="/etc/letsencrypt/live/${domain}/fullchain.pem"
+  mkdir -p "$webroot"
+
+  apply_site() { # $1 = conteúdo do arquivo
+    local backup=""
+    [ -f "$site" ] && backup=$(cat "$site")
+    printf '%s\n' "$1" > "$site"
+    ln -sf "$site" "$link"
+    if nginx -t 2>&1; then
+      systemctl reload nginx
+    else
+      echo "ERRO: configuração nginx inválida, desfazendo"
+      if [ -n "$backup" ]; then printf '%s\n' "$backup" > "$site"; else rm -f "$site" "$link"; fi
+      nginx -t && systemctl reload nginx
+      exit 1
+    fi
+  }
+
+  local acme="    location /.well-known/acme-challenge/ { root ${webroot}; }"
+  local http_only="server {
+    listen 80;
+    listen [::]:80;
+    server_name ${domain};
+${acme}
+    location / { return 301 https://\$host\$request_uri; }
+}"
+
+  if [ ! -f "$cert" ]; then
+    echo "=== Emitindo certificado para ${domain} ==="
+    apply_site "$http_only"
+    certbot certonly --webroot -w "$webroot" -d "$domain" --non-interactive --agree-tos \
+      --register-unsafely-without-email --keep-until-expiring --deploy-hook "systemctl reload nginx"
+  fi
+
+  echo "=== Configurando nginx: https://${domain} -> 127.0.0.1:${port} ==="
+  apply_site "${http_only}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name ${domain};
+
+    ssl_certificate /etc/letsencrypt/live/${domain}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${domain}/privkey.pem;
+
+    client_max_body_size 20m;
+
+    location / {
+        proxy_pass http://127.0.0.1:${port};
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 180s;
+    }
+}"
+}
+
 # Login isolado nesta pasta: não mexe nas credenciais Docker das outras aplicações da VPS
 export DOCKER_CONFIG="$APP_DIR/.docker"
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
@@ -70,6 +137,11 @@ $COMPOSE ps
 
 # Limpeza restrita a ESTA imagem (VPS compartilhada: nunca `prune -a`).
 # Mantém a release atual e a anterior (rede de rollback).
+if [ -n "${DOMAIN:-}" ]; then
+  setup_nginx "$DOMAIN" "$APP_PORT"
+  curl -fsS --max-time 15 "https://${DOMAIN}/health" && echo " <- OK via https://${DOMAIN}" || echo "AVISO: https://${DOMAIN} ainda não respondeu (DNS propagando?)"
+fi
+
 echo "=== Limpando versões antigas da imagem ==="
 docker images --format '{{.Repository}}:{{.Tag}}' \
   | grep "^${IMAGE}:" \

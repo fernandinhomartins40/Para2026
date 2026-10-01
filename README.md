@@ -81,26 +81,13 @@ A imagem é **sempre construída no GitHub Actions** e publicada no GHCR (`ghcr.
 
 O Google só aceita login em páginas **HTTPS com domínio** (ou `http://localhost`). Por isso a aplicação precisa ser acessada por um subdomínio, ex.: `https://zap.seudominio.com.br`.
 
-**1. Subdomínio → aplicação.** Crie o registro DNS `A` do subdomínio apontando para `72.60.10.108` e, no proxy HTTPS que já atende a VPS, encaminhe o subdomínio para `http://127.0.0.1:47815`. Exemplo para **nginx** (com certificado via certbot):
-
-```nginx
-server {
-    server_name zap.seudominio.com.br;
-    location / {
-        proxy_pass http://127.0.0.1:47815;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        client_max_body_size 20m;
-    }
-}
-```
+**1. Subdomínio → aplicação (automático).** Crie o registro DNS `A` do subdomínio apontando para a VPS e coloque-o em `DOMAIN` nos workflows (atual: `zap.fuselink.com.br`). O deploy cria só o arquivo `/etc/nginx/sites-available/para2026` no nginx do host, emite o certificado com `certbot --webroot` (renovação automática pelo certbot) e encaminha para `127.0.0.1:47815`. Toda mudança passa por `nginx -t` antes do `reload`; se falhar, é desfeita — os sites das outras aplicações não são tocados.
 
 **2. Client ID do Google.** Em https://console.cloud.google.com → *APIs e serviços* → *Tela de consentimento OAuth* (tipo **Externo**, publique o app) → *Credenciais* → *Criar credenciais* → *ID do cliente OAuth* → tipo **Aplicativo da Web**:
 - **Origens JavaScript autorizadas**: `https://zap.seudominio.com.br`
 - Não precisa de URI de redirecionamento nem de client secret.
 
-**3.** Coloque o Client ID em `GOOGLE_CLIENT_ID` nos dois workflows (`deploy.yml` e `redeploy.yml`) e faça o deploy.
+**3.** Coloque o Client ID em `GOOGLE_CLIENT_ID` nos dois workflows (`deploy.yml` e `redeploy.yml`) e faça o deploy. Endereço: https://zap.fuselink.com.br
 
 > **Primeiro login:** os dados da versão anterior (lista, mensagem, imagem e sessão do WhatsApp já conectada) vão para **o primeiro usuário que entrar**. Entre você primeiro.
 

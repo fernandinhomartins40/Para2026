@@ -1,6 +1,6 @@
 # Compose da VPS (compartilhada com outras aplicações).
 # - Nomes de container/volume/rede com prefixo "para2026-" para não colidir com nada existente.
-# - Porta alta no host (APP_PORT, padrão 47815) -> 3000 no container. Acesso: http://IP_DA_VPS:47815
+# - Porta alta só em 127.0.0.1 (APP_PORT, padrão 47815); acesso público via nginx do host em https://DOMAIN
 # - A imagem é SEMPRE construída no GitHub Actions e publicada no GHCR; a VPS só faz pull (sem seção build).
 services:
   whatsapp:
@@ -8,7 +8,8 @@ services:
     container_name: para2026-whatsapp
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-47815}:3000"
+      # Só localhost: o acesso público é pelo nginx do host (https://DOMAIN)
+      - "127.0.0.1:${APP_PORT:-47815}:3000"
     environment:
       - PORT=3000
       - HEADLESS=true
