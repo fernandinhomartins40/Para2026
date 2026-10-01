@@ -29,7 +29,7 @@ Abra http://localhost:3000, crie sua conta em **Criar conta** e:
 
 1. **Conexão**: leia o QR Code com o celular (WhatsApp → Aparelhos conectados → Conectar aparelho).
 2. **Mensagem**: escreva o texto e clique em *Salvar texto*. Escolha a imagem (opcional). Texto e imagem vão em **duas mensagens separadas**, na ordem escolhida em *Ordem de envio* (padrão: texto primeiro, depois a imagem).
-   - `{nome}` e `{primeiro_nome}` (também aceita `{{nome}}`, `[nome]`, `{primeiro nome}`) viram o **nome da lista** ou, se a lista não tiver nome, o **nome que aparece no WhatsApp** (nome salvo no seu celular ou o nome de perfil da pessoa). O nome encontrado fica gravado na lista. Sem nome nenhum, a variável some sem deixar "Olá , tudo bem".
+   - `{nome}` (ou `{primeiro_nome}`) vira o **primeiro nome da lista**, com a primeira letra maiúscula ("MARIA SILVA" → "Maria"); `{nome_completo}` vira o nome inteiro. O nome vem só da lista — coloque nome e número em cada linha. Abaixo do botão de envio aparece a **prévia** exata da próxima mensagem.
 3. **Adicionar números**: um por linha, com ou sem nome, em qualquer ordem e separador:
    ```
    11999998888

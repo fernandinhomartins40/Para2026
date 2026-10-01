@@ -33,8 +33,8 @@
 
       <div class="card">
         <h2>Mensagem</h2>
-        <label for="text">Texto: use <code>{nome}</code> ou <code>{primeiro_nome}</code> — vem o nome da lista ou, se não tiver, o nome que aparece no WhatsApp</label>
-        <textarea id="text" rows="7" placeholder="Olá {primeiro_nome}, tudo bem?"></textarea>
+        <label for="text">Texto: <code>{nome}</code> vira o <b>primeiro nome</b> da lista (ex.: "Maria"); <code>{nome_completo}</code> vira o nome inteiro</label>
+        <textarea id="text" rows="7" placeholder="Olá {nome}, tudo bem?"></textarea>
         <div class="row">
           <button id="btn-save-text">Salvar texto</button>
           <span id="text-saved" class="muted"></span>
@@ -62,8 +62,8 @@
     <section class="col wide">
       <div class="card">
         <h2>Adicionar números</h2>
-        <label for="numbers">Um por linha. Pode ser <code>11999999999</code> ou <code>11999999999;Nome</code></label>
-        <textarea id="numbers" rows="5" placeholder="11999998888;Maria Silva&#10;+55 21 98888-7777;João"></textarea>
+        <label for="numbers">Um por linha: <b>nome e número</b>, em qualquer ordem (ex.: <code>Maria Silva 11999999999</code> ou <code>11999999999;Maria</code>)</label>
+        <textarea id="numbers" rows="5" placeholder="Maria Silva 11999998888&#10;João Pereira (21) 98888-7777"></textarea>
         <div class="row">
           <button id="btn-add">Adicionar à lista</button>
           <span id="add-result" class="muted"></span>
@@ -83,6 +83,11 @@
         <div class="next-box">
           <button id="btn-next" class="big">Enviar para o próximo pendente</button>
           <p id="next-info" class="muted"></p>
+          <div id="preview" class="preview" hidden>
+            <div class="preview-head">Prévia para <b id="preview-to"></b></div>
+            <div id="preview-text" class="preview-bubble"></div>
+            <p id="preview-warn" class="err" hidden>Este número está sem nome na lista: a mensagem vai sem o nome.</p>
+          </div>
         </div>
 
         <div class="tabs" id="tabs">

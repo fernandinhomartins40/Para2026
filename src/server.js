@@ -7,6 +7,7 @@ const db = require('./db');
 const wa = require('./whatsapp');
 const auth = require('./auth');
 const { parseList } = require('./phone');
+const { renderText } = require('./template');
 
 const PORT = Number(process.env.PORT) || 3000;
 const UPLOAD_DIR = path.join(db.DATA_DIR, 'uploads');
@@ -200,7 +201,6 @@ async function sendTo(userId, contact) {
     const imageFirst = db.getSetting(userId, 'order', 'text_first') === 'image_first';
     const r = await client.sendMessage({ phone: contact.phone, template, listName: contact.name, imagePath, imageFirst });
     text = r.text;
-    if (r.waName && !contact.name) db.setNameIfEmpty(userId, contact.id, r.waName);
     db.markSent(userId, contact.id);
     db.log(userId, contact, 'sent', text, imagePath && path.basename(imagePath));
     return { ok: true, contact: db.getContact(userId, contact.id) };
@@ -227,6 +227,13 @@ app.post('/api/send-next', wrap(async (req, res) => {
   if (!contact) throw new Error('Não há números pendentes');
   res.json(await sendTo(req.user.id, contact));
 }));
+
+// Prévia do texto que vai para o próximo pendente (com o nome dele).
+app.get('/api/preview', (req, res) => {
+  const next = db.nextPending(req.user.id);
+  if (!next) return res.json({ contact: null });
+  res.json({ contact: next, text: renderText(db.getSetting(req.user.id, 'text', ''), next.name) });
+});
 
 app.get('/api/history', (req, res) => res.json({ history: db.history(req.user.id) }));
 

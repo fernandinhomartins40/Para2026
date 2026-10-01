@@ -118,6 +118,7 @@ $('order').onchange = async () => {
 $('btn-save-text').onclick = async () => {
   await api('/api/message', { method: 'PUT', body: JSON.stringify({ text: $('text').value }) });
   $('text-saved').textContent = 'Salvo ✓';
+  loadPreview();
   setTimeout(() => ($('text-saved').textContent = ''), 2000);
 };
 
@@ -154,6 +155,17 @@ $('btn-add').onclick = async () => {
   loadContacts();
 };
 
+async function loadPreview() {
+  try {
+    const p = await api('/api/preview');
+    $('preview').hidden = !p.contact;
+    if (!p.contact) return;
+    $('preview-to').textContent = (p.contact.name ? p.contact.name + ' · ' : '') + formatPhone(p.contact.phone);
+    $('preview-text').textContent = p.text || '(sem texto — só a imagem)';
+    $('preview-warn').hidden = !!p.contact.name || !/[{\[]\s*(primeiro|nome)/i.test($('text').value);
+  } catch {}
+}
+
 async function loadContacts() {
   const { contacts, counts } = await api('/api/contacts?status=' + filter);
   renderCounts(counts);
@@ -174,6 +186,7 @@ async function loadContacts() {
     })
     .join('');
   updateNextButton();
+  loadPreview();
 }
 
 async function doSend(url, rowId) {

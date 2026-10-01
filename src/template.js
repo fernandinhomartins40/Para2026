@@ -1,22 +1,25 @@
 // Variáveis aceitas no texto (maiúsculas/minúsculas e espaços tanto faz):
-// {nome} {{nome}} [nome]  ->  nome completo
-// {primeiro_nome} {primeiro nome} {{primeiro_nome}} [primeiro nome]  ->  só o primeiro nome
-const FIRST_RE = /\{\{?\s*primeiro[\s_-]*nome\s*\}?\}|\[\s*primeiro[\s_-]*nome\s*\]/gi;
-const FULL_RE = /\{\{?\s*nome\s*\}?\}|\[\s*nome\s*\]/gi;
+// {nome} {primeiro_nome} {primeiro nome} {{nome}} [nome]  ->  primeiro nome da lista ("Maria")
+// {nome_completo} {nome completo}                          ->  nome completo da lista ("Maria Silva")
+const FULL_RE = /\{\{?\s*nome[\s_-]*completo\s*\}?\}|\[\s*nome[\s_-]*completo\s*\]/gi;
+const FIRST_RE = /\{\{?\s*(?:primeiro[\s_-]*)?nome\s*\}?\}|\[\s*(?:primeiro[\s_-]*)?nome\s*\]/gi;
 
-function hasNamePlaceholder(template) {
-  const t = String(template || '');
-  FIRST_RE.lastIndex = 0;
-  FULL_RE.lastIndex = 0;
-  return FIRST_RE.test(t) || FULL_RE.test(t);
+// "MARIA" / "maria" -> "Maria"; mantém nomes já escritos com maiúsculas e minúsculas.
+function tidy(word) {
+  if (!word) return '';
+  if (word === word.toUpperCase() || word === word.toLowerCase()) {
+    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+  }
+  return word;
 }
 
 function renderText(template, name) {
-  const full = String(name || '').trim();
-  const first = full.split(/\s+/)[0] || '';
+  const full = String(name || '').trim().replace(/\s+/g, ' ');
+  const first = tidy(full.split(' ')[0] || '');
+  const fullTidy = full.split(' ').map((w) => (w.length > 2 ? tidy(w) : w.toLowerCase())).join(' ');
   let text = String(template || '')
-    .replace(FIRST_RE, first)
-    .replace(FULL_RE, full);
+    .replace(FULL_RE, fullTidy ? first && fullTidy.replace(/^\S+/, first) : '')
+    .replace(FIRST_RE, first);
   if (!full) {
     // Sem nome: evita "Olá , tudo bem?" e espaços duplos.
     text = text.replace(/[ \t]+([,.!?])/g, '$1').replace(/[ \t]{2,}/g, ' ');
@@ -24,4 +27,4 @@ function renderText(template, name) {
   return text.trim();
 }
 
-module.exports = { hasNamePlaceholder, renderText };
+module.exports = { renderText };
