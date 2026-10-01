@@ -5,6 +5,10 @@ name: Diagnóstico do proxy da VPS (somente leitura)
 
 "on":
   workflow_dispatch:
+  # Roda também quando este arquivo muda (para poder ser disparado por push)
+  push:
+    paths:
+      - .github/workflows/vps-diagnostico.yml
 
 permissions:
   contents: read
