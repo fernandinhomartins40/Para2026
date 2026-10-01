@@ -3,6 +3,7 @@ const path = require('path');
 const QRCode = require('qrcode');
 const { chromium } = require('playwright');
 const { DATA_DIR } = require('./db');
+const { hasNamePlaceholder, renderText } = require('./template');
 
 const SESSIONS_DIR = path.join(DATA_DIR, 'wa-sessions');
 const HEADLESS = process.env.HEADLESS !== 'false';
@@ -40,6 +41,9 @@ const SEL = {
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const looksLikePhone = (t) => /^[+\d\s().-]{8,}$/.test(String(t || '').trim());
+// Limpa o nome vindo do WhatsApp: tira o "~" do nome de perfil e espaços extras.
+const cleanName = (t) => String(t || '').replace(/^~\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 60);
 // Remove cores ANSI e o "call log" do Playwright das mensagens de erro.
 const cleanError = (err) => String(err.message || err).replace(/\u001b\[\d+m/g, '').split('\n')[0];
 
@@ -187,6 +191,43 @@ class WhatsAppClient {
     throw new Error('Tempo esgotado ao abrir a conversa');
   }
 
+  // Nome que o WhatsApp mostra para a conversa aberta:
+  // 1) cabeçalho da conversa (nome salvo no celular ou nome comercial);
+  // 2) se o cabeçalho só mostra o número, abre "Dados do contato" e pega o nome de perfil ("~Nome").
+  async getContactName() {
+    const page = this.page;
+    const header = await page
+      .evaluate(() => {
+        const h = document.querySelector('#main header');
+        if (!h) return null;
+        const el = h.querySelector('span[dir="auto"][title]') || h.querySelector('span[title]') || h.querySelector('span[dir="auto"]');
+        return el ? (el.getAttribute('title') || el.textContent || '').trim() : null;
+      })
+      .catch(() => null);
+    if (header && !looksLikePhone(header)) return cleanName(header);
+
+    try {
+      await page.locator('#main header').first().click({ timeout: 3000 });
+      const handle = await page.waitForFunction(
+        () => {
+          const spans = [...document.querySelectorAll('span[dir="auto"], span')].filter(
+            (el) => !el.closest('#main') && !el.closest('#side') && el.offsetParent !== null
+          );
+          const hit = spans.find((el) => /^~\s*\S/.test((el.textContent || '').trim()));
+          return hit ? hit.textContent.trim() : null;
+        },
+        null,
+        { timeout: 5000 }
+      );
+      return cleanName(await handle.jsonValue());
+    } catch {
+      return null;
+    } finally {
+      await page.keyboard.press('Escape').catch(() => {});
+      await sleep(400);
+    }
+  }
+
   async typeMultiline(text) {
     const kb = this.page.keyboard;
     const lines = String(text).split(/\r?\n/);
@@ -307,15 +348,20 @@ class WhatsAppClient {
   }
 
   // Texto e imagem vão em duas mensagens separadas, na ordem escolhida (padrão: texto primeiro).
-  async sendMessage({ phone, text, imagePath, imageFirst = false }) {
+  // O texto é montado aqui: usa o nome da lista ou, sem ele, o nome que aparece no WhatsApp.
+  // Retorna { text, waName } (texto enviado e nome encontrado no WhatsApp, se buscou).
+  async sendMessage({ phone, template, listName, imagePath, imageFirst = false }) {
     if (this.state !== 'ready' || !this.page) throw new Error('WhatsApp não está conectado');
     if (this.busy) throw new Error('Já existe um envio em andamento, aguarde');
-    if (!text && !imagePath) throw new Error('Configure a mensagem e/ou a imagem antes de enviar');
+    if (!String(template || '').trim() && !imagePath) throw new Error('Configure a mensagem e/ou a imagem antes de enviar');
     this.busy = true;
     this.lastSeen = Date.now();
     try {
       await this.openChat(phone);
       await sleep(800);
+      let waName = null;
+      if (!listName && hasNamePlaceholder(template)) waName = await this.getContactName();
+      const text = renderText(template, listName || waName);
       const steps = [];
       if (text) steps.push(() => this.sendText(text));
       if (imagePath) steps.push(() => this.sendImage(imagePath));
@@ -325,6 +371,7 @@ class WhatsAppClient {
         await this.waitDelivered();
         await sleep(800);
       }
+      return { text, waName };
     } catch (err) {
       throw new Error(cleanError(err));
     } finally {

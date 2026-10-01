@@ -29,12 +29,13 @@ Abra http://localhost:3000, crie sua conta em **Criar conta** e:
 
 1. **Conexão**: leia o QR Code com o celular (WhatsApp → Aparelhos conectados → Conectar aparelho).
 2. **Mensagem**: escreva o texto e clique em *Salvar texto*. Escolha a imagem (opcional). Texto e imagem vão em **duas mensagens separadas**, na ordem escolhida em *Ordem de envio* (padrão: texto primeiro, depois a imagem).
-   - `{nome}` e `{primeiro_nome}` são substituídos pelo nome do contato (se informado).
-3. **Adicionar números**: um por linha, com ou sem nome:
+   - `{nome}` e `{primeiro_nome}` (também aceita `{{nome}}`, `[nome]`, `{primeiro nome}`) viram o **nome da lista** ou, se a lista não tiver nome, o **nome que aparece no WhatsApp** (nome salvo no seu celular ou o nome de perfil da pessoa). O nome encontrado fica gravado na lista. Sem nome nenhum, a variável some sem deixar "Olá , tudo bem".
+3. **Adicionar números**: um por linha, com ou sem nome, em qualquer ordem e separador:
    ```
    11999998888
    11999997777;Maria Silva
-   +55 (21) 98888-7777, João
+   Maria Souza 11 99999-6666
+   João - (21) 98888-7777
    ```
    Números com DDD sem o código do país recebem `55` automaticamente.
 4. Clique em **Enviar para o próximo pendente** a cada envio. O status muda para *Enviado* quando o WhatsApp confirma a saída da mensagem (sai o reloginho).

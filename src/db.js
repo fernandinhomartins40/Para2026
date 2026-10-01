@@ -127,6 +127,7 @@ const stmts = {
   markFailed: db.prepare("UPDATE contacts SET status = 'failed', error = ? WHERE id = ? AND user_id = ?"),
   resetContact: db.prepare("UPDATE contacts SET status = 'pending', error = NULL, sent_at = NULL WHERE id = ? AND user_id = ?"),
   deleteContact: db.prepare('DELETE FROM contacts WHERE id = ? AND user_id = ?'),
+  setNameIfEmpty: db.prepare("UPDATE contacts SET name = ? WHERE id = ? AND user_id = ? AND (name IS NULL OR name = '')"),
   deleteNotSent: db.prepare("DELETE FROM contacts WHERE user_id = ? AND status != 'sent'"),
   counts: db.prepare('SELECT status, COUNT(*) AS n FROM contacts WHERE user_id = ? GROUP BY status'),
   listAll: db.prepare('SELECT * FROM contacts WHERE user_id = ? ORDER BY id'),
@@ -243,6 +244,7 @@ module.exports = {
   markFailed: (userId, id, error) => stmts.markFailed.run(error, id, userId),
   resetContact: (userId, id) => stmts.resetContact.run(id, userId),
   deleteContact: (userId, id) => stmts.deleteContact.run(id, userId),
+  setNameIfEmpty: (userId, id, name) => stmts.setNameIfEmpty.run(name, id, userId),
   deleteNotSent: (userId) => stmts.deleteNotSent.run(userId),
   log: (userId, c, status, message, image, error) =>
     stmts.log.run(userId, c.id, c.phone, status, message || null, image || null, error || null),

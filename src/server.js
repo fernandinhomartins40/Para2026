@@ -118,15 +118,6 @@ function currentImagePath(userId) {
   return fs.existsSync(full) ? full : null;
 }
 
-function renderText(template, contact) {
-  const name = (contact.name || '').trim();
-  const first = name.split(/\s+/)[0] || '';
-  return String(template || '')
-    .replace(/\{nome\}/gi, name)
-    .replace(/\{primeiro_nome\}/gi, first)
-    .trim();
-}
-
 // ---- WhatsApp (um por usuário) ----
 // Abrir a página já liga o WhatsApp do usuário; ele é fechado sozinho após um tempo sem uso.
 app.get('/api/status', wrap(async (req, res) => {
@@ -203,10 +194,13 @@ async function sendTo(userId, contact) {
   if (!contact) throw new Error('Contato não encontrado');
   const client = wa.get(userId);
   const imagePath = currentImagePath(userId);
-  const text = renderText(db.getSetting(userId, 'text', ''), contact);
+  const template = db.getSetting(userId, 'text', '');
+  let text = template;
   try {
     const imageFirst = db.getSetting(userId, 'order', 'text_first') === 'image_first';
-    await client.sendMessage({ phone: contact.phone, text, imagePath, imageFirst });
+    const r = await client.sendMessage({ phone: contact.phone, template, listName: contact.name, imagePath, imageFirst });
+    text = r.text;
+    if (r.waName && !contact.name) db.setNameIfEmpty(userId, contact.id, r.waName);
     db.markSent(userId, contact.id);
     db.log(userId, contact, 'sent', text, imagePath && path.basename(imagePath));
     return { ok: true, contact: db.getContact(userId, contact.id) };
