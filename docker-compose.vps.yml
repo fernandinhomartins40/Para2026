@@ -15,12 +15,19 @@ services:
       - DATA_DIR=/app/data
       - TZ=America/Sao_Paulo
       - DEFAULT_COUNTRY_CODE=${DEFAULT_COUNTRY_CODE:-55}
+      # Login com Google (Client ID é público, vem do workflow). Vazio = ninguém consegue logar.
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      # Multiusuário: um Chromium por usuário conectado (~300-400 MB cada).
+      - MAX_BROWSERS=${MAX_BROWSERS:-4}
+      - IDLE_MINUTES=${IDLE_MINUTES:-15}
     volumes:
-      # Banco SQLite, imagem da mensagem e sessão do WhatsApp (não perde o login entre deploys)
+      # Banco SQLite, imagens e sessões do WhatsApp de cada usuário (não perde o login entre deploys)
       - para2026_data:/app/data
     # Chromium precisa de /dev/shm maior que os 64 MB padrão do Docker
-    shm_size: "512m"
-    mem_limit: 1536m
+    shm_size: "1g"
+    mem_limit: 2560m
+    # Tempo para fechar os navegadores com calma no deploy (evita perfil travado)
+    stop_grace_period: 30s
     networks:
       - para2026
 

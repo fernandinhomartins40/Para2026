@@ -9,6 +9,7 @@ const STATE_LABEL = {
   loading: 'Carregando WhatsApp...',
   starting: 'Abrindo navegador...',
   stopped: 'Desconectado',
+  waiting: 'Na fila',
   error: 'Erro',
 };
 const STATUS_LABEL = { pending: 'Pendente', sent: 'Enviado', failed: 'Falhou' };
@@ -18,6 +19,10 @@ async function api(url, opts = {}) {
     ...opts,
     headers: opts.body && !(opts.body instanceof FormData) ? { 'Content-Type': 'application/json' } : undefined,
   });
+  if (res.status === 401) {
+    location.href = '/login.html';
+    throw new Error('Sessão expirada');
+  }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
   return data;
@@ -62,6 +67,7 @@ async function refreshStatus() {
       msg.textContent =
         s.state === 'ready' ? '✅ WhatsApp conectado. Pode enviar.' :
         s.state === 'error' ? '❌ ' + (s.error || 'Erro ao iniciar') + ' — clique em Reconectar.' :
+        s.state === 'waiting' ? '⏳ ' + s.error :
         STATE_LABEL[s.state] || s.state;
     }
     $('card-conn').dataset.state = s.state;
@@ -224,7 +230,21 @@ $('btn-logout').onclick = async () => {
   setTimeout(refreshStatus, 500);
 };
 
-loadMessage();
-loadContacts();
-refreshStatus();
-setInterval(refreshStatus, 2500);
+$('btn-logout-app').onclick = async () => {
+  await fetch('/auth/logout', { method: 'POST' });
+  location.href = '/login.html';
+};
+
+(async () => {
+  const me = await api('/api/me');
+  $('user-name').textContent = me.name || me.email;
+  $('user').title = me.email;
+  if (me.picture) {
+    $('user-pic').src = me.picture;
+    $('user-pic').hidden = false;
+  }
+  loadMessage();
+  loadContacts();
+  refreshStatus();
+  setInterval(refreshStatus, 2500);
+})();

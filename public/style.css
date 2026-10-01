@@ -15,7 +15,7 @@ header { background: var(--green-dark); color: #fff; padding: 14px 24px; display
 header h1 { font-size: 20px; margin: 0; }
 .badge { padding: 4px 12px; border-radius: 999px; font-size: 13px; background: rgba(255,255,255,.2); }
 .badge.ready { background: #25d366; color: #073b26; }
-.badge.qr, .badge.loading, .badge.starting { background: #ffd966; color: #4a3b00; }
+.badge.qr, .badge.loading, .badge.starting, .badge.waiting { background: #ffd966; color: #4a3b00; }
 .badge.error, .badge.stopped { background: #ffb3b0; color: #5a0f0c; }
 
 main { display: flex; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 auto; flex-wrap: wrap; }
@@ -78,3 +78,13 @@ tr.sending { background: #f3fbf8; }
   main { padding: 12px; }
   header { padding: 12px 16px; }
 }
+
+.header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.user { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.user img { width: 28px; height: 28px; border-radius: 50%; }
+.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.login-card { max-width: 400px; width: 100%; text-align: center; }
+.login-card h1 { font-size: 22px; margin: 0 0 8px; color: var(--green-dark); }
+.login-card #google-btn { display: flex; justify-content: center; margin: 20px 0 8px; min-height: 44px; }
+.login-card input { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; margin-bottom: 8px; }
+.login-card .err { max-width: none; margin-top: 10px; }

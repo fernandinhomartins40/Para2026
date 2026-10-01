@@ -39,6 +39,8 @@ echo "Porta ${APP_PORT} livre"
 
 set_env_var APP_PORT "$APP_PORT"
 set_env_var RELEASE "$RELEASE"
+# Client ID do Google (público). Vazio no workflow = mantém o que já estiver no .env da VPS.
+if [ -n "${GOOGLE_CLIENT_ID:-}" ]; then set_env_var GOOGLE_CLIENT_ID "$GOOGLE_CLIENT_ID"; fi
 
 # Login isolado nesta pasta: não mexe nas credenciais Docker das outras aplicações da VPS
 export DOCKER_CONFIG="$APP_DIR/.docker"

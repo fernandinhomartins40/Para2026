@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar · Envio Manual WhatsApp</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="login-page">
+  <div class="card login-card">
+    <h1>Envio Manual WhatsApp</h1>
+    <p class="muted">Entre com sua conta Google. Cada conta tem seu próprio WhatsApp, lista de números e histórico.</p>
+    <div id="google-btn"></div>
+    <form id="dev-form" hidden>
+      <p class="muted">Modo desenvolvimento (sem Google):</p>
+      <input type="email" id="dev-email" placeholder="seu@email.com" required>
+      <button type="submit">Entrar</button>
+    </form>
+    <p id="login-error" class="err"></p>
+  </div>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="login.js"></script>
+</body>
+</html>
