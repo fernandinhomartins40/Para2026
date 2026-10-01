@@ -41,6 +41,8 @@ const SEL = {
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Erro de verificação antes de tentar enviar (nada foi tentado): não marca o contato como falho.
+const precheckError = (msg) => Object.assign(new Error(msg), { precheck: true });
 // Remove cores ANSI e o "call log" do Playwright das mensagens de erro.
 const cleanError = (err) => String(err.message || err).replace(/\u001b\[\d+m/g, '').split('\n')[0];
 
@@ -310,9 +312,9 @@ class WhatsAppClient {
   // Texto e imagem vão em duas mensagens separadas, na ordem escolhida (padrão: texto primeiro).
   // O texto é montado com o nome da lista (primeiro nome). Retorna { text } com o texto enviado.
   async sendMessage({ phone, template, listName, imagePath, imageFirst = false }) {
-    if (this.state !== 'ready' || !this.page) throw new Error('WhatsApp não está conectado');
-    if (this.busy) throw new Error('Já existe um envio em andamento, aguarde');
-    if (!String(template || '').trim() && !imagePath) throw new Error('Configure a mensagem e/ou a imagem antes de enviar');
+    if (this.state !== 'ready' || !this.page) throw precheckError('WhatsApp não está conectado');
+    if (this.busy) throw precheckError('Já existe um envio em andamento, aguarde');
+    if (!String(template || '').trim() && !imagePath) throw precheckError('Configure a mensagem e/ou a imagem antes de enviar');
     this.busy = true;
     this.lastSeen = Date.now();
     try {

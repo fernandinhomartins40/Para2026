@@ -40,7 +40,7 @@ Abra http://localhost:3000, crie sua conta em **Criar conta** e:
    Números com DDD sem o código do país recebem `55` automaticamente.
 4. Clique em **Enviar para o próximo pendente** a cada envio. O status muda para *Enviado* quando o WhatsApp confirma a saída da mensagem (sai o reloginho).
 
-Números inválidos/sem WhatsApp ficam como **Falhou** com o motivo; você pode voltá-los para pendente.
+Qualquer erro durante o envio (número inválido, sem WhatsApp, tempo esgotado...) marca o número como **Falhou** com o motivo e o tira da fila — o próximo clique segue para o número seguinte. O botão **Marcar falha** tira um pendente da fila manualmente; na aba *Falhas* dá para voltá-los para pendente.
 
 ## Configuração (variáveis de ambiente)
 

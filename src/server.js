@@ -187,6 +187,12 @@ app.post('/api/contacts', (req, res) => {
   res.json({ added, existing, invalid });
 });
 
+// Marca manualmente como falha (tira da fila de pendentes).
+app.post('/api/contacts/:id/fail', (req, res) => {
+  db.markFailed(req.user.id, req.params.id, 'Marcado manualmente');
+  res.json({ ok: true });
+});
+
 app.post('/api/contacts/:id/reset', (req, res) => { db.resetContact(req.user.id, req.params.id); res.json({ ok: true }); });
 app.delete('/api/contacts/:id', (req, res) => { db.deleteContact(req.user.id, req.params.id); res.json({ ok: true }); });
 app.delete('/api/contacts', (req, res) => { const r = db.deleteNotSent(req.user.id); res.json({ removed: r.changes }); });
@@ -205,10 +211,12 @@ async function sendTo(userId, contact) {
     db.log(userId, contact, 'sent', text, imagePath && path.basename(imagePath));
     return { ok: true, contact: db.getContact(userId, contact.id) };
   } catch (err) {
-    // Erros de conexão/concorrência não marcam o contato como falho.
-    if (client.state === 'ready' && !/em andamento|não está conectado|Configure a mensagem/.test(err.message)) {
+    // Qualquer erro durante o envio marca Falhou e tira o número da fila de pendentes,
+    // para o próximo clique seguir para o número seguinte. Só não marca quando nada foi tentado.
+    if (!err.precheck) {
       db.markFailed(userId, contact.id, err.message);
       db.log(userId, contact, 'failed', text, imagePath && path.basename(imagePath), err.message);
+      err.message = `Falhou para ${contact.name ? contact.name + ' ' : ''}+${contact.phone}: ${err.message}. Marcado como falha; o próximo envio segue para o número seguinte.`;
     }
     throw err;
   }

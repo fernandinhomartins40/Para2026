@@ -174,6 +174,7 @@ async function loadContacts() {
     .map((c) => {
       const actions = [];
       if (c.status !== 'sent') actions.push(`<button class="small btn-send" data-send="${c.id}">Enviar</button>`);
+      if (c.status === 'pending') actions.push(`<button class="small secondary" data-fail="${c.id}" title="Tirar da fila de pendentes">Marcar falha</button>`);
       if (c.status !== 'pending') actions.push(`<button class="small secondary" data-reset="${c.id}">${c.status === 'sent' ? 'Reenviar' : 'Voltar p/ pendente'}</button>`);
       actions.push(`<button class="small danger" data-del="${c.id}" title="Remover">✕</button>`);
       return `<tr id="row-${c.id}">
@@ -212,6 +213,11 @@ $('rows').onclick = async (e) => {
   const b = e.target.closest('button');
   if (!b) return;
   if (b.dataset.send) return doSend(`/api/contacts/${b.dataset.send}/send`, b.dataset.send);
+  if (b.dataset.fail) {
+    await api(`/api/contacts/${b.dataset.fail}/fail`, { method: 'POST' });
+    toast('Marcado como falha');
+    return loadContacts();
+  }
   if (b.dataset.reset) {
     await api(`/api/contacts/${b.dataset.reset}/reset`, { method: 'POST' });
     return loadContacts();
