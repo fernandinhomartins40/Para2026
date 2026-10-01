@@ -139,7 +139,13 @@ $COMPOSE ps
 # Mantém a release atual e a anterior (rede de rollback).
 if [ -n "${DOMAIN:-}" ]; then
   setup_nginx "$DOMAIN" "$APP_PORT"
-  curl -fsS --max-time 15 "https://${DOMAIN}/health" && echo " <- OK via https://${DOMAIN}" || echo "AVISO: https://${DOMAIN} ainda não respondeu (DNS propagando?)"
+  # O reload do nginx troca os workers em segundo plano: tenta algumas vezes antes de avisar.
+  ok=0
+  for i in 1 2 3 4 5 6; do
+    sleep 3
+    if curl -fsS --max-time 10 --resolve "${DOMAIN}:443:127.0.0.1" "https://${DOMAIN}/health"; then ok=1; echo " <- OK via https://${DOMAIN}"; break; fi
+  done
+  [ "$ok" = 1 ] || echo "AVISO: https://${DOMAIN} ainda não respondeu com o certificado certo"
 fi
 
 echo "=== Limpando versões antigas da imagem ==="

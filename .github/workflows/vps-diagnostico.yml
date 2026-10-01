@@ -48,4 +48,8 @@ jobs:
           echo; echo "=== Labels de proxy em containers (traefik/caddy/nginx-proxy) ==="
           docker ps -q | xargs -r docker inspect --format '{{.Name}} {{json .Config.Labels}}' | grep -iE 'traefik|caddy|virtual_host' | cut -c1-400 | head -20 || true
           docker ps --format '{{.Names}}\t{{.Image}}' | grep -Ei 'nginx|traefik|caddy|proxy|velomail' || true
+          echo; echo "=== Teste HTTPS do subdomínio do app ==="
+          curl -sS --max-time 10 --resolve zap.fuselink.com.br:443:127.0.0.1 https://zap.fuselink.com.br/health; echo
+          echo | openssl s_client -connect 127.0.0.1:443 -servername zap.fuselink.com.br 2>/dev/null | openssl x509 -noout -subject -enddate || true
+          ls -l /etc/nginx/sites-enabled/para2026 2>/dev/null || true
           EOF
