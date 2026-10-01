@@ -40,7 +40,7 @@
           <span id="text-saved" class="muted"></span>
         </div>
 
-        <label>Imagem (vai junto com o texto como legenda)</label>
+        <label>Imagem (enviada como mensagem separada do texto)</label>
         <div id="image-box">
           <img id="image-preview" alt="Imagem" hidden>
           <p id="no-image" class="muted">Nenhuma imagem selecionada</p>
@@ -50,6 +50,12 @@
           <button id="btn-pick-image" class="secondary">Escolher imagem</button>
           <button id="btn-remove-image" class="danger" hidden>Remover imagem</button>
         </div>
+
+        <label for="order">Ordem de envio (texto e imagem vão em duas mensagens)</label>
+        <select id="order">
+          <option value="text_first">1º texto, 2º imagem</option>
+          <option value="image_first">1º imagem, 2º texto</option>
+        </select>
       </div>
     </section>
 

@@ -28,7 +28,7 @@ npm start
 Abra http://localhost:3000, crie sua conta em **Criar conta** e:
 
 1. **Conexão**: leia o QR Code com o celular (WhatsApp → Aparelhos conectados → Conectar aparelho).
-2. **Mensagem**: escreva o texto e clique em *Salvar texto*. Escolha a imagem (opcional). A imagem é enviada com o texto como legenda; sem imagem, vai só o texto.
+2. **Mensagem**: escreva o texto e clique em *Salvar texto*. Escolha a imagem (opcional). Texto e imagem vão em **duas mensagens separadas**, na ordem escolhida em *Ordem de envio* (padrão: texto primeiro, depois a imagem).
    - `{nome}` e `{primeiro_nome}` são substituídos pelo nome do contato (se informado).
 3. **Adicionar números**: um por linha, com ou sem nome:
    ```

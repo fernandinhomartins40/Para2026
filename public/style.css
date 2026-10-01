@@ -25,6 +25,7 @@ main { display: flex; gap: 20px; padding: 20px; max-width: 1400px; margin: 0 aut
 .card { background: var(--card); border-radius: 10px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
 .card h2 { margin: 0 0 12px; font-size: 17px; }
 label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 6px; }
+select { width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; background: #fff; }
 textarea { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; resize: vertical; }
 code { background: #eef1f3; padding: 1px 5px; border-radius: 4px; }
 .row { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }

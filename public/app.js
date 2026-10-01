@@ -99,6 +99,7 @@ function updateNextButton() {
 async function loadMessage() {
   const m = await api('/api/message');
   $('text').value = m.text || '';
+  $('order').value = m.order || 'text_first';
   showImage(m.image);
 }
 
@@ -108,6 +109,11 @@ function showImage(url) {
   $('btn-remove-image').hidden = !url;
   if (url) $('image-preview').src = url + '?t=' + Date.now();
 }
+
+$('order').onchange = async () => {
+  await api('/api/message', { method: 'PUT', body: JSON.stringify({ text: $('text').value, order: $('order').value }) });
+  toast('Ordem de envio salva');
+};
 
 $('btn-save-text').onclick = async () => {
   await api('/api/message', { method: 'PUT', body: JSON.stringify({ text: $('text').value }) });

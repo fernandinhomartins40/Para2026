@@ -151,11 +151,16 @@ app.post('/api/whatsapp/logout', wrap(async (req, res) => {
 // ---- Mensagem ----
 app.get('/api/message', (req, res) => {
   const uid = req.user.id;
-  res.json({ text: db.getSetting(uid, 'text', ''), image: currentImagePath(uid) ? '/api/message/image' : null });
+  res.json({
+    text: db.getSetting(uid, 'text', ''),
+    image: currentImagePath(uid) ? '/api/message/image' : null,
+    order: db.getSetting(uid, 'order', 'text_first'),
+  });
 });
 
 app.put('/api/message', (req, res) => {
   db.setSetting(req.user.id, 'text', String(req.body.text || ''));
+  if (req.body.order) db.setSetting(req.user.id, 'order', req.body.order === 'image_first' ? 'image_first' : 'text_first');
   res.json({ ok: true });
 });
 
@@ -200,7 +205,8 @@ async function sendTo(userId, contact) {
   const imagePath = currentImagePath(userId);
   const text = renderText(db.getSetting(userId, 'text', ''), contact);
   try {
-    await client.sendMessage({ phone: contact.phone, text, imagePath });
+    const imageFirst = db.getSetting(userId, 'order', 'text_first') === 'image_first';
+    await client.sendMessage({ phone: contact.phone, text, imagePath, imageFirst });
     db.markSent(userId, contact.id);
     db.log(userId, contact, 'sent', text, imagePath && path.basename(imagePath));
     return { ok: true, contact: db.getContact(userId, contact.id) };

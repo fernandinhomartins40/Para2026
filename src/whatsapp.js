@@ -201,10 +201,25 @@ class WhatsAppClient {
   }
 
   async sendText(text) {
-    await this.page.locator(SEL.compose).first().click();
+    const page = this.page;
+    const box = page.locator(SEL.compose).first();
+    await box.click();
     await this.typeMultiline(text);
     await sleep(300);
-    await this.page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    // Confirma que saiu: a caixa de digitação fica vazia. Se não, tenta pelo botão de enviar.
+    const emptied = await page
+      .waitForFunction((sel) => !(document.querySelector(sel)?.innerText || '').trim(), SEL.compose, { timeout: 4000 })
+      .then(() => true)
+      .catch(() => false);
+    if (!emptied) {
+      await page.locator(`#main footer ${SEL.mediaSend.split(', ').join(', #main footer ')}`).first().click({ timeout: 3000 }).catch(() => {});
+      const ok = await page
+        .waitForFunction((sel) => !(document.querySelector(sel)?.innerText || '').trim(), SEL.compose, { timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!ok) throw new Error('O texto não foi enviado (ficou na caixa de digitação)');
+    }
   }
 
   // Procura a caixa de legenda do editor de mídia (um contenteditable fora do rodapé da conversa e da lista lateral).
@@ -255,7 +270,8 @@ class WhatsAppClient {
     await this.page.locator(SEL.imageInput).first().setInputFiles(imagePath);
   }
 
-  async sendImage(imagePath, caption) {
+  // Envia só a imagem (sem legenda): o texto vai como mensagem separada.
+  async sendImage(imagePath) {
     const page = this.page;
     await this.pasteImage(imagePath);
     let opened = await this.waitMediaEditor(8000);
@@ -265,31 +281,18 @@ class WhatsAppClient {
     }
     if (!opened) throw new Error('Não foi possível abrir o editor de imagem do WhatsApp');
 
-    await sleep(500);
-    let captionSent = false;
-    if (caption) {
-      const captionBox = page.locator('[data-wa-caption="1"]');
-      if (await captionBox.isVisible().catch(() => false)) {
-        await captionBox.click();
-        await this.typeMultiline(caption);
-        captionSent = true;
-      }
-    }
-    await sleep(300);
+    await sleep(700);
+    // Foco no editor da imagem (legenda vazia) para o Enter enviar a imagem.
+    await page.locator('[data-wa-caption="1"]').click({ timeout: 3000 }).catch(() => {});
     await page.keyboard.press('Enter');
 
-    // Espera o editor de mídia fechar
+    // Espera o editor de mídia fechar; se não fechar, clica no botão de enviar.
     const closed = await page
       .waitForFunction(() => !document.querySelector('[data-wa-caption="1"]') || document.querySelector('[data-wa-caption="1"]').offsetParent === null, null, { timeout: 15000 })
       .then(() => true)
       .catch(() => false);
     if (!closed) {
       await page.locator(SEL.mediaSend).last().click({ timeout: 5000 });
-    }
-
-    if (caption && !captionSent) {
-      await sleep(800);
-      await this.sendText(caption);
     }
   }
 
@@ -303,7 +306,8 @@ class WhatsAppClient {
     throw new Error('A mensagem ficou pendente (relógio) por muito tempo');
   }
 
-  async sendMessage({ phone, text, imagePath }) {
+  // Texto e imagem vão em duas mensagens separadas, na ordem escolhida (padrão: texto primeiro).
+  async sendMessage({ phone, text, imagePath, imageFirst = false }) {
     if (this.state !== 'ready' || !this.page) throw new Error('WhatsApp não está conectado');
     if (this.busy) throw new Error('Já existe um envio em andamento, aguarde');
     if (!text && !imagePath) throw new Error('Configure a mensagem e/ou a imagem antes de enviar');
@@ -312,9 +316,15 @@ class WhatsAppClient {
     try {
       await this.openChat(phone);
       await sleep(800);
-      if (imagePath) await this.sendImage(imagePath, text);
-      else await this.sendText(text);
-      await this.waitDelivered();
+      const steps = [];
+      if (text) steps.push(() => this.sendText(text));
+      if (imagePath) steps.push(() => this.sendImage(imagePath));
+      if (imageFirst) steps.reverse();
+      for (const step of steps) {
+        await step();
+        await this.waitDelivered();
+        await sleep(800);
+      }
     } catch (err) {
       throw new Error(cleanError(err));
     } finally {
