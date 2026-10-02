@@ -70,11 +70,20 @@
         </div>
         <div class="extract-box">
           <h3>Extrair do WhatsApp</h3>
-          <p class="muted">Crie uma prévia com nome e número. Para grupos, abra primeiro o grupo desejado no WhatsApp Web conectado.</p>
+          <p class="muted">Crie uma prévia com nome e número. Carregue os grupos e marque somente aqueles que deseja usar.</p>
           <div class="row">
             <button id="btn-extract-chats" class="secondary">Das conversas</button>
-            <button id="btn-extract-group" class="secondary">Do grupo aberto</button>
+            <button id="btn-extract-contacts" class="secondary">Dos meus contatos</button>
+            <button id="btn-load-groups" class="secondary">Selecionar grupos</button>
             <span id="extract-result" class="muted"></span>
+          </div>
+          <div id="group-picker" hidden>
+            <div class="group-picker-head">
+              <b>Grupos encontrados</b>
+              <label><input type="checkbox" id="groups-all"> Selecionar todos</label>
+            </div>
+            <div id="group-options" class="group-options"></div>
+            <button id="btn-extract-groups">Extrair dos grupos selecionados</button>
           </div>
         </div>
       </div>

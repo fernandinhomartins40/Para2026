@@ -190,9 +190,14 @@ app.post('/api/contacts', (req, res) => {
 
 // Gera apenas uma prévia; a inclusão exige confirmação pelo botão da lista.
 app.post('/api/contacts/extract', wrap(async (req, res) => {
-  const contacts = await wa.get(req.user.id).extractContacts({ source: req.body?.source });
+  const contacts = await wa.get(req.user.id).extractContacts({ source: req.body?.source, groupIds: req.body?.groupIds });
   const text = contacts.map((c) => `${c.name ? c.name + ';' : ''}${c.phone}`).join('\n');
   res.json({ contacts, text, total: contacts.length });
+}));
+
+app.get('/api/whatsapp/groups', wrap(async (req, res) => {
+  const groups = await wa.get(req.user.id).listGroups();
+  res.json({ groups });
 }));
 
 // Marca manualmente como falha (tira da fila de pendentes).

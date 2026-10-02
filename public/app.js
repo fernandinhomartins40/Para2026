@@ -155,14 +155,14 @@ $('btn-add').onclick = async () => {
   loadContacts();
 };
 
-async function extractContacts(source) {
-  const buttons = [$('btn-extract-chats'), $('btn-extract-group')];
+async function extractContacts(source, groupIds = []) {
+  const buttons = [$('btn-extract-chats'), $('btn-extract-contacts'), $('btn-load-groups'), $('btn-extract-groups')];
   buttons.forEach((button) => (button.disabled = true));
   $('extract-result').textContent = 'Extraindo...';
   try {
     const r = await api('/api/contacts/extract', {
       method: 'POST',
-      body: JSON.stringify({ source }),
+      body: JSON.stringify({ source, groupIds }),
     });
     $('numbers').value = r.text;
     $('extract-result').textContent = `${r.total} contato(s) encontrado(s). Revise e clique em Adicionar à lista.`;
@@ -177,7 +177,33 @@ async function extractContacts(source) {
 }
 
 $('btn-extract-chats').onclick = () => extractContacts('chats');
-$('btn-extract-group').onclick = () => extractContacts('group');
+$('btn-extract-contacts').onclick = () => extractContacts('contacts');
+$('btn-load-groups').onclick = async () => {
+  $('btn-load-groups').disabled = true;
+  $('extract-result').textContent = 'Carregando grupos...';
+  try {
+    const { groups } = await api('/api/whatsapp/groups');
+    $('group-options').innerHTML = groups.map((group) => `
+      <label><input type="checkbox" value="${esc(group.id)}"> <span>${esc(group.name)}</span></label>
+    `).join('');
+    $('group-picker').hidden = false;
+    $('extract-result').textContent = `${groups.length} grupo(s) encontrado(s).`;
+    $('groups-all').checked = false;
+  } catch (err) {
+    $('extract-result').textContent = err.message;
+    toast(err.message, true);
+  } finally {
+    $('btn-load-groups').disabled = false;
+  }
+};
+$('groups-all').onchange = (e) => {
+  document.querySelectorAll('#group-options input').forEach((input) => (input.checked = e.target.checked));
+};
+$('btn-extract-groups').onclick = () => {
+  const ids = [...document.querySelectorAll('#group-options input:checked')].map((input) => input.value);
+  if (!ids.length) return toast('Selecione pelo menos um grupo', true);
+  extractContacts('groups', ids);
+};
 
 async function loadPreview() {
   try {

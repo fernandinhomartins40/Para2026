@@ -370,10 +370,190 @@ class WhatsAppClient {
     }, { rootSelector, source });
   }
 
-  async extractContacts({ source = 'chats' } = {}) {
+  async collectVisibleGroups() {
+    return this.page.evaluate((rootSelector) => {
+      const root = document.querySelector(rootSelector);
+      if (!root) return [];
+      const rows = [...root.querySelectorAll('[role="row"]')];
+      const output = [];
+      const inspectRow = (row) => {
+        const ids = new Set();
+        const findId = (value) => {
+          const match = String(value || '').match(/([\d-]+)@g\.us/);
+          if (match) ids.add(match[1] + '@g.us');
+        };
+        for (const el of [row, ...row.querySelectorAll('*')]) {
+          for (const attr of el.attributes || []) findId(attr.value);
+        }
+        const seen = new WeakSet();
+        let visited = 0;
+        const inspect = (value, depth) => {
+          if (visited++ > 2500 || depth > 7 || value == null) return;
+          if (typeof value === 'string') return findId(value);
+          if (typeof value !== 'object' || seen.has(value)) return;
+          seen.add(value);
+          for (const key of Object.keys(value)) {
+            if (['return', 'sibling', 'alternate', '_owner', 'stateNode'].includes(key)) continue;
+            try { inspect(value[key], depth + 1); } catch {}
+          }
+        };
+        for (const key of Object.keys(row)) {
+          if (key.startsWith('__reactProps') || key.startsWith('__reactFiber')) inspect(row[key], 0);
+        }
+        const name = [...row.querySelectorAll('span[title]')]
+          .map((el) => (el.getAttribute('title') || '').replace(/\s+/g, ' ').trim())
+          .find(Boolean);
+        for (const id of ids) output.push({ id, name: name || 'Grupo sem nome' });
+      };
+      rows.forEach(inspectRow);
+      return output;
+    }, SEL.side);
+  }
+
+  async scanGroups() {
+    const side = this.page.locator(SEL.side);
+    if (!(await side.isVisible().catch(() => false))) throw new Error('A lista de conversas não está disponível');
+    const groups = new Map();
+    await side.evaluate((el) => { el.scrollTop = 0; });
+    for (let attempts = 0; attempts < 500 && groups.size < 1000; attempts++) {
+      for (const group of await this.collectVisibleGroups()) groups.set(group.id, group);
+      const moved = await side.evaluate((el) => {
+        const before = el.scrollTop;
+        el.scrollTop = Math.min(el.scrollTop + Math.max(300, el.clientHeight * 0.8), el.scrollHeight);
+        return el.scrollTop !== before;
+      });
+      if (!moved) break;
+      await sleep(400);
+    }
+    await side.evaluate((el) => { el.scrollTop = 0; });
+    return [...groups.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  }
+
+  async listGroups() {
     if (this.state !== 'ready' || !this.page) throw precheckError('WhatsApp não está conectado');
     if (this.busy) throw precheckError('Já existe uma operação em andamento, aguarde');
-    if (!['chats', 'group'].includes(source)) throw precheckError('Fonte de extração inválida');
+    this.busy = true;
+    this.lastSeen = Date.now();
+    try {
+      return await this.scanGroups();
+    } finally {
+      this.busy = false;
+      this.lastSeen = Date.now();
+    }
+  }
+
+  async openGroup(groupId) {
+    const side = this.page.locator(SEL.side);
+    await side.evaluate((el) => { el.scrollTop = 0; });
+    for (let attempts = 0; attempts < 200; attempts++) {
+      const clicked = await this.page.evaluate(({ rootSelector, groupId }) => {
+        const root = document.querySelector(rootSelector);
+        const rows = root ? [...root.querySelectorAll('[role="row"]')] : [];
+        const containsId = (row) => {
+          const needle = groupId;
+          for (const el of [row, ...row.querySelectorAll('*')]) {
+            for (const attr of el.attributes || []) if (String(attr.value).includes(needle)) return true;
+          }
+          const seen = new WeakSet();
+          let visited = 0;
+          const inspect = (value, depth) => {
+            if (visited++ > 2500 || depth > 7 || value == null) return false;
+            if (typeof value === 'string') return value.includes(needle);
+            if (typeof value !== 'object' || seen.has(value)) return false;
+            seen.add(value);
+            for (const key of Object.keys(value)) {
+              if (['return', 'sibling', 'alternate', '_owner', 'stateNode'].includes(key)) continue;
+              try { if (inspect(value[key], depth + 1)) return true; } catch {}
+            }
+            return false;
+          };
+          for (const key of Object.keys(row)) {
+            if ((key.startsWith('__reactProps') || key.startsWith('__reactFiber')) && inspect(row[key], 0)) return true;
+          }
+          return false;
+        };
+        const row = rows.find(containsId);
+        if (!row) return false;
+        row.click();
+        return true;
+      }, { rootSelector: SEL.side, groupId });
+      if (clicked) {
+        await sleep(1200);
+        return;
+      }
+      const moved = await side.evaluate((el) => {
+        const before = el.scrollTop;
+        el.scrollTop = Math.min(el.scrollTop + Math.max(300, el.clientHeight * 0.8), el.scrollHeight);
+        return el.scrollTop !== before;
+      });
+      if (!moved) break;
+      await sleep(350);
+    }
+    throw new Error('O grupo selecionado não foi encontrado no WhatsApp');
+  }
+
+  async extractSavedContacts() {
+    const button = this.page.locator([
+      '[data-icon="new-chat-outline"]',
+      '[data-icon="new-chat"]',
+      'button[aria-label="Nova conversa"]',
+      'button[aria-label="New chat"]',
+      '[title="Nova conversa"]',
+      '[title="New chat"]',
+    ].join(', ')).first();
+    if (!(await button.isVisible().catch(() => false))) {
+      throw new Error('Não foi possível abrir a lista de contatos do WhatsApp');
+    }
+    await button.click();
+    await sleep(900);
+
+    const pickerFound = await this.page.evaluate(() => {
+      document.querySelectorAll('[data-wa-contact-picker]').forEach((el) => el.removeAttribute('data-wa-contact-picker'));
+      const visible = (el) => el.offsetParent !== null && el.clientHeight > 150;
+      const candidates = [...document.querySelectorAll('div')]
+        .filter((el) => visible(el) && el.scrollHeight > el.clientHeight + 20 && el.querySelector('[role="row"]'))
+        .sort((a, b) => {
+          const aSide = a.closest('#side') ? 1 : 0;
+          const bSide = b.closest('#side') ? 1 : 0;
+          return bSide - aSide || b.clientHeight - a.clientHeight;
+        });
+      const picker = candidates[0];
+      if (!picker) return false;
+      picker.setAttribute('data-wa-contact-picker', '1');
+      picker.scrollTop = 0;
+      return true;
+    });
+    if (!pickerFound) {
+      await this.page.keyboard.press('Escape').catch(() => {});
+      throw new Error('A lista de contatos não foi carregada pelo WhatsApp');
+    }
+
+    const found = [];
+    try {
+      const picker = this.page.locator('[data-wa-contact-picker="1"]');
+      for (let attempts = 0; attempts < 500 && found.length < 10000; attempts++) {
+        found.push(...await this.collectVisibleContacts('[data-wa-contact-picker="1"]', 'contato salvo'));
+        const moved = await picker.evaluate((el) => {
+          const before = el.scrollTop;
+          el.scrollTop = Math.min(el.scrollTop + Math.max(300, el.clientHeight * 0.8), el.scrollHeight);
+          return el.scrollTop !== before;
+        });
+        if (!moved) break;
+        await sleep(350);
+      }
+      return found;
+    } finally {
+      await this.page.keyboard.press('Escape').catch(() => {});
+    }
+  }
+
+  async extractContacts({ source = 'chats', groupIds = [] } = {}) {
+    if (this.state !== 'ready' || !this.page) throw precheckError('WhatsApp não está conectado');
+    if (this.busy) throw precheckError('Já existe uma operação em andamento, aguarde');
+    if (!['chats', 'contacts', 'groups'].includes(source)) throw precheckError('Fonte de extração inválida');
+    if (source === 'groups' && (!Array.isArray(groupIds) || !groupIds.length)) {
+      throw precheckError('Selecione pelo menos um grupo');
+    }
     this.busy = true;
     this.lastSeen = Date.now();
     try {
@@ -398,11 +578,18 @@ class WhatsAppClient {
           await sleep(500);
         }
         await side.evaluate((el) => { el.scrollTop = 0; });
+      } else if (source === 'contacts') {
+        found.push(...await this.extractSavedContacts());
       } else {
-        if (!(await this.page.locator('#main').isVisible().catch(() => false))) {
-          throw new Error('Abra um grupo no WhatsApp antes de extrair');
+        const available = await this.scanGroups();
+        const availableById = new Map(available.map((group) => [group.id, group]));
+        const selected = [...new Set(groupIds)].map((id) => availableById.get(id)).filter(Boolean);
+        if (selected.length !== new Set(groupIds).size) throw new Error('Um dos grupos selecionados não está mais disponível');
+        if (selected.length > 20) throw new Error('Selecione no máximo 20 grupos por extração');
+        for (const group of selected) {
+          await this.openGroup(group.id);
+          found.push(...await this.collectVisibleContacts('#main', group.name));
         }
-        found.push(...await this.collectVisibleContacts('#main', 'grupo aberto'));
       }
 
       const byPhone = new Map();

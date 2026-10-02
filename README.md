@@ -45,7 +45,7 @@ Qualquer erro durante o envio (número inválido, sem WhatsApp, tempo esgotado..
 
 ### Extração de contatos
 
-Em **Extrair do WhatsApp**, o botão **Das conversas** percorre as conversas carregadas e **Do grupo aberto** coleta os participantes disponíveis no grupo que estiver aberto. O resultado aparece no mesmo formato da lista (`Nome;5511999999999`) para revisão; nada é adicionado até clicar em **Adicionar à lista**.
+Em **Extrair do WhatsApp**, o botão **Das conversas** percorre as conversas carregadas e **Dos meus contatos** lê a agenda disponível no seletor de nova conversa. Para grupos, use **Selecionar grupos**, marque explicitamente um ou mais grupos encontrados e clique em **Extrair dos grupos selecionados**. O resultado aparece no mesmo formato da lista (`Nome;5511999999999`) para revisão; nada é adicionado até clicar em **Adicionar à lista**.
 
 ## Configuração (variáveis de ambiente)
 
