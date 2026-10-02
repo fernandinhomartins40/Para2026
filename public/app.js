@@ -172,11 +172,12 @@ async function extractContacts(source, groupIds = []) {
     }
     await loadContacts();
     const detail = r.existing ? ` ${r.existing} já estava(m) na lista e não foi(ram) duplicado(s).` : '';
+    const unresolved = r.unresolved ? ` ${r.unresolved} contato(s) usa(m) identificador privado e não expõe(m) o telefone.` : '';
     if (r.total) {
-      showExtractFeedback('success', `✅ Extração concluída: ${r.total} encontrado(s), ${r.added} adicionado(s) como pendente(s).${detail}`);
+      showExtractFeedback('success', `✅ Extração concluída: ${r.examined} analisado(s), ${r.total} com número, ${r.added} adicionado(s) como pendente(s).${detail}${unresolved}`);
       toast(`${r.added} novo(s) contato(s) adicionado(s) como pendente(s)`);
     } else {
-      showExtractFeedback('warning', '⚠️ A extração terminou, mas nenhum número foi encontrado. Tente atualizar o WhatsApp e repetir.');
+      showExtractFeedback('warning', `⚠️ A extração analisou ${r.examined || 0} contato(s), mas nenhum telefone pôde ser recuperado.${unresolved}`);
       toast('Nenhum número foi encontrado', true);
     }
   } catch (err) {

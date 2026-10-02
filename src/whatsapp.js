@@ -5,6 +5,8 @@ const { chromium } = require('playwright');
 const { DATA_DIR } = require('./db');
 const { renderText } = require('./template');
 
+const WAJS_PATH = require.resolve('@wppconnect/wa-js');
+
 const SESSIONS_DIR = path.join(DATA_DIR, 'wa-sessions');
 const HEADLESS = process.env.HEADLESS !== 'false';
 // Máximo de navegadores abertos ao mesmo tempo (cada WhatsApp Web usa ~300-400 MB de RAM).
@@ -370,6 +372,82 @@ class WhatsAppClient {
     }, { rootSelector, source });
   }
 
+  async ensureWppInjected() {
+    const ready = await this.page.evaluate(() => !!window.WPP?.isReady).catch(() => false);
+    if (!ready) {
+      await this.page.addScriptTag({ path: WAJS_PATH });
+      await this.page.waitForFunction(() => !!window.WPP?.isReady, null, { timeout: 45000 });
+    }
+  }
+
+  async listGroupsWithWpp() {
+    await this.ensureWppInjected();
+    return this.page.evaluate(async () => {
+      const groups = await WPP.group.getAllGroups();
+      const value = (wid) => wid?._serialized || wid?.id?._serialized || (typeof wid === 'string' ? wid : null);
+      return (groups || []).filter(Boolean).map((group) => ({
+        id: value(group.id),
+        name: group.formattedTitle || group.name || group.contact?.name || group.contact?.pushname || 'Grupo sem nome',
+      })).filter((group) => group.id?.endsWith('@g.us'));
+    });
+  }
+
+  async extractWithWpp(source, groupIds) {
+    await this.ensureWppInjected();
+    return this.page.evaluate(async ({ source, groupIds }) => {
+      const widValue = (value) => value?._serialized || value?.id?._serialized || (typeof value === 'string' ? value : null);
+      const digitsFromWid = (value) => {
+        const wid = widValue(value) || '';
+        const match = wid.match(/^(\d{7,15})(?::\d+)?@(?:c\.us|s\.whatsapp\.net)$/);
+        return match ? match[1] : null;
+      };
+      const cleanName = (...values) => {
+        for (const value of values) {
+          const name = String(value || '').replace(/\s+/g, ' ').trim();
+          if (name && name.length <= 120 && !/^\+?[\d\s().-]+$/.test(name)) return name;
+        }
+        return null;
+      };
+      const resolveContact = async (model, sourceName) => {
+        const id = widValue(model?.id || model);
+        let entry = null;
+        if (id) entry = await WPP.contact.getPnLidEntry(id).catch(() => null);
+        const phone = digitsFromWid(entry?.phoneNumber) || digitsFromWid(model?.phoneNumber) || digitsFromWid(id);
+        const info = entry?.contact || {};
+        return {
+          phone,
+          name: cleanName(model?.name, model?.formattedName, model?.pushname, model?.shortName,
+            info.name, info.verifiedName, info.pushname, info.shortName),
+          source: sourceName,
+          unresolved: !phone,
+        };
+      };
+
+      const resolved = [];
+      if (source === 'contacts') {
+        const contacts = await WPP.contact.list({ onlyMyContacts: true });
+        for (const contact of contacts || []) resolved.push(await resolveContact(contact, 'contato salvo'));
+      } else if (source === 'chats') {
+        const chats = await WPP.chat.list({ onlyUsers: true });
+        for (const chat of chats || []) resolved.push(await resolveContact(chat.contact || chat, 'conversa'));
+      } else {
+        const groups = await WPP.group.getAllGroups();
+        const groupsById = new Map((groups || []).filter(Boolean).map((group) => [widValue(group.id), group]));
+        for (const groupId of groupIds) {
+          const group = groupsById.get(groupId);
+          const groupName = group?.formattedTitle || group?.name || 'grupo selecionado';
+          const participants = await WPP.group.getParticipants(groupId);
+          for (const participant of participants || []) {
+            resolved.push(await resolveContact(participant.contact || participant, groupName));
+          }
+        }
+      }
+
+      const contacts = resolved.filter((item) => item.phone).map(({ unresolved, ...item }) => item);
+      return { contacts, unresolved: resolved.filter((item) => item.unresolved).length, examined: resolved.length };
+    }, { source, groupIds });
+  }
+
   async collectVisibleGroups() {
     return this.page.evaluate((rootSelector) => {
       const root = document.querySelector(rootSelector);
@@ -435,7 +513,7 @@ class WhatsAppClient {
     this.busy = true;
     this.lastSeen = Date.now();
     try {
-      return await this.scanGroups();
+      return await this.listGroupsWithWpp();
     } finally {
       this.busy = false;
       this.lastSeen = Date.now();
@@ -548,6 +626,32 @@ class WhatsAppClient {
   }
 
   async extractContacts({ source = 'chats', groupIds = [] } = {}) {
+    if (this.state !== 'ready' || !this.page) throw precheckError('WhatsApp não está conectado');
+    if (this.busy) throw precheckError('Já existe uma operação em andamento, aguarde');
+    if (!['chats', 'contacts', 'groups'].includes(source)) throw precheckError('Fonte de extração inválida');
+    if (source === 'groups' && (!Array.isArray(groupIds) || !groupIds.length)) {
+      throw precheckError('Selecione pelo menos um grupo');
+    }
+    if (source === 'groups' && groupIds.length > 20) throw precheckError('Selecione no máximo 20 grupos por extração');
+    this.busy = true;
+    this.lastSeen = Date.now();
+    try {
+      const result = await this.extractWithWpp(source, [...new Set(groupIds)]);
+      const byPhone = new Map();
+      for (const item of result.contacts) {
+        const current = byPhone.get(item.phone);
+        if (!current || (!current.name && item.name)) byPhone.set(item.phone, item);
+      }
+      return { ...result, contacts: [...byPhone.values()].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR')) };
+    } catch (err) {
+      throw new Error(`Falha ao ler os dados internos do WhatsApp: ${cleanError(err)}`);
+    } finally {
+      this.busy = false;
+      this.lastSeen = Date.now();
+    }
+  }
+
+  async extractContactsLegacy({ source = 'chats', groupIds = [] } = {}) {
     if (this.state !== 'ready' || !this.page) throw precheckError('WhatsApp não está conectado');
     if (this.busy) throw precheckError('Já existe uma operação em andamento, aguarde');
     if (!['chats', 'contacts', 'groups'].includes(source)) throw precheckError('Fonte de extração inválida');

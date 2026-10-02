@@ -188,12 +188,13 @@ app.post('/api/contacts', (req, res) => {
   res.json({ added, existing, invalid });
 });
 
-// Gera apenas uma prévia; a inclusão exige confirmação pelo botão da lista.
+// Extrai pelo modelo interno do WhatsApp e inclui os novos números como pendentes.
 app.post('/api/contacts/extract', wrap(async (req, res) => {
-  const contacts = await wa.get(req.user.id).extractContacts({ source: req.body?.source, groupIds: req.body?.groupIds });
+  const extraction = await wa.get(req.user.id).extractContacts({ source: req.body?.source, groupIds: req.body?.groupIds });
+  const { contacts, unresolved, examined } = extraction;
   const text = contacts.map((c) => `${c.name ? c.name + ';' : ''}${c.phone}`).join('\n');
   const { added, existing } = db.addContacts(req.user.id, contacts);
-  res.json({ contacts, text, total: contacts.length, added, existing, counts: db.counts(req.user.id) });
+  res.json({ contacts, text, total: contacts.length, added, existing, unresolved, examined, counts: db.counts(req.user.id) });
 }));
 
 app.get('/api/whatsapp/groups', wrap(async (req, res) => {
