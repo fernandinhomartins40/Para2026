@@ -155,6 +155,30 @@ $('btn-add').onclick = async () => {
   loadContacts();
 };
 
+async function extractContacts(source) {
+  const buttons = [$('btn-extract-chats'), $('btn-extract-group')];
+  buttons.forEach((button) => (button.disabled = true));
+  $('extract-result').textContent = 'Extraindo...';
+  try {
+    const r = await api('/api/contacts/extract', {
+      method: 'POST',
+      body: JSON.stringify({ source }),
+    });
+    $('numbers').value = r.text;
+    $('extract-result').textContent = `${r.total} contato(s) encontrado(s). Revise e clique em Adicionar à lista.`;
+    $('numbers').focus();
+    toast(`${r.total} contato(s) extraído(s) para revisão`);
+  } catch (err) {
+    $('extract-result').textContent = err.message;
+    toast(err.message, true);
+  } finally {
+    buttons.forEach((button) => (button.disabled = false));
+  }
+}
+
+$('btn-extract-chats').onclick = () => extractContacts('chats');
+$('btn-extract-group').onclick = () => extractContacts('group');
+
 async function loadPreview() {
   try {
     const p = await api('/api/preview');

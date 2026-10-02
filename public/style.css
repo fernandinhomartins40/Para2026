@@ -103,3 +103,6 @@ dialog .row button { flex: 1; }
 .preview-head { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
 .preview-bubble { background: #d9fdd3; border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; font-size: 14px; max-height: 160px; overflow: auto; }
 .preview .err { max-width: none; margin: 6px 0 0; }
+.extract-box { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.extract-box h3 { margin: 0; font-size: 15px; }
+.extract-box p { margin: 5px 0; }

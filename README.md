@@ -43,6 +43,10 @@ Abra http://localhost:3000, crie sua conta em **Criar conta** e:
 
 Qualquer erro durante o envio (número inválido, sem WhatsApp, tempo esgotado...) marca o número como **Falhou** com o motivo e o tira da fila — o próximo clique segue para o número seguinte. O botão **Marcar falha** tira um pendente da fila manualmente; na aba *Falhas* dá para voltá-los para pendente.
 
+### Extração de contatos
+
+Em **Extrair do WhatsApp**, o botão **Das conversas** percorre as conversas carregadas e **Do grupo aberto** coleta os participantes disponíveis no grupo que estiver aberto. O resultado aparece no mesmo formato da lista (`Nome;5511999999999`) para revisão; nada é adicionado até clicar em **Adicionar à lista**.
+
 ## Configuração (variáveis de ambiente)
 
 | Variável | Padrão | Descrição |

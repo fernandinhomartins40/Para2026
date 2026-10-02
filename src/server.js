@@ -188,6 +188,13 @@ app.post('/api/contacts', (req, res) => {
   res.json({ added, existing, invalid });
 });
 
+// Gera apenas uma prévia; a inclusão exige confirmação pelo botão da lista.
+app.post('/api/contacts/extract', wrap(async (req, res) => {
+  const contacts = await wa.get(req.user.id).extractContacts({ source: req.body?.source });
+  const text = contacts.map((c) => `${c.name ? c.name + ';' : ''}${c.phone}`).join('\n');
+  res.json({ contacts, text, total: contacts.length });
+}));
+
 // Marca manualmente como falha (tira da fila de pendentes).
 app.post('/api/contacts/:id/fail', (req, res) => {
   db.markFailed(req.user.id, req.params.id, 'Marcado manualmente');

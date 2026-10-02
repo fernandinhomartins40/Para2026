@@ -36,6 +36,7 @@ const SEL = {
     'div[aria-label="Send"]',
   ].join(', '),
   pending: '#main [data-icon="msg-time"]',
+  side: '#pane-side',
 };
 
 const MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif' };
@@ -311,6 +312,114 @@ class WhatsAppClient {
 
   // Texto e imagem vão em duas mensagens separadas, na ordem escolhida (padrão: texto primeiro).
   // O texto é montado com o nome da lista (primeiro nome). Retorna { text } com o texto enviado.
+  // Extracts contact JIDs attached by WhatsApp Web to visible UI items. Saved
+  // contacts often only show a name, so the React data attached to each row is
+  // inspected as a fallback to DOM attributes.
+  async collectVisibleContacts(rootSelector, source) {
+    return this.page.evaluate(({ rootSelector, source }) => {
+      const root = document.querySelector(rootSelector);
+      if (!root) return [];
+      const phoneFrom = (value) => {
+        const match = String(value || '').match(/(?:^|[^\d])(\d{7,15})@(?:c\.us|s\.whatsapp\.net)(?:$|[^\w])/);
+        return match ? match[1] : null;
+      };
+      const cleanName = (value) => {
+        const text = String(value || '').replace(/\s+/g, ' ').trim();
+        if (!text || text.length > 120 || /^\+?[\d\s().-]+$/.test(text)) return null;
+        return text;
+      };
+      const candidates = [...root.querySelectorAll('[role="row"], [data-id], [data-testid="cell-frame-container"]')];
+      const rows = candidates.filter((el) => !candidates.some((other) => other !== el && other.contains(el)));
+      const output = [];
+
+      for (const row of rows.length ? rows : [root]) {
+        const phones = new Set();
+        for (const el of [row, ...row.querySelectorAll('*')]) {
+          for (const attr of el.attributes || []) {
+            const phone = phoneFrom(attr.value);
+            if (phone) phones.add(phone);
+          }
+        }
+
+        const seen = new WeakSet();
+        let visited = 0;
+        const inspect = (value, depth) => {
+          if (visited++ > 2500 || depth > 7 || value == null) return;
+          if (typeof value === 'string') {
+            const phone = phoneFrom(value);
+            if (phone) phones.add(phone);
+            return;
+          }
+          if (typeof value !== 'object' || seen.has(value)) return;
+          seen.add(value);
+          for (const key of Object.keys(value)) {
+            if (key === 'return' || key === 'sibling' || key === 'alternate' || key === '_owner' || key === 'stateNode') continue;
+            try { inspect(value[key], depth + 1); } catch {}
+          }
+        };
+        for (const key of Object.keys(row)) {
+          if (key.startsWith('__reactProps') || key.startsWith('__reactFiber')) inspect(row[key], 0);
+        }
+
+        const title = [...row.querySelectorAll('span[title]')]
+          .map((el) => cleanName(el.getAttribute('title')))
+          .find(Boolean);
+        for (const phone of phones) output.push({ phone, name: title, source });
+      }
+      return output;
+    }, { rootSelector, source });
+  }
+
+  async extractContacts({ source = 'chats' } = {}) {
+    if (this.state !== 'ready' || !this.page) throw precheckError('WhatsApp não está conectado');
+    if (this.busy) throw precheckError('Já existe uma operação em andamento, aguarde');
+    if (!['chats', 'group'].includes(source)) throw precheckError('Fonte de extração inválida');
+    this.busy = true;
+    this.lastSeen = Date.now();
+    try {
+      const found = [];
+      if (source === 'chats') {
+        const side = this.page.locator(SEL.side);
+        if (!(await side.isVisible().catch(() => false))) throw new Error('A lista de conversas não está disponível');
+        let unchanged = 0;
+        let previousSize = 0;
+        await side.evaluate((el) => { el.scrollTop = 0; });
+        while (unchanged < 4 && found.length < 5000) {
+          found.push(...await this.collectVisibleContacts(SEL.side, 'conversa'));
+          const uniqueSize = new Set(found.map((x) => x.phone)).size;
+          unchanged = uniqueSize === previousSize ? unchanged + 1 : 0;
+          previousSize = uniqueSize;
+          const moved = await side.evaluate((el) => {
+            const before = el.scrollTop;
+            el.scrollTop = Math.min(el.scrollTop + Math.max(300, el.clientHeight * 0.8), el.scrollHeight);
+            return el.scrollTop !== before;
+          });
+          if (!moved) unchanged++;
+          await sleep(500);
+        }
+        await side.evaluate((el) => { el.scrollTop = 0; });
+      } else {
+        if (!(await this.page.locator('#main').isVisible().catch(() => false))) {
+          throw new Error('Abra um grupo no WhatsApp antes de extrair');
+        }
+        found.push(...await this.collectVisibleContacts('#main', 'grupo aberto'));
+      }
+
+      const byPhone = new Map();
+      for (const item of found) {
+        if (!item.phone) continue;
+        const current = byPhone.get(item.phone);
+        if (!current || (!current.name && item.name)) byPhone.set(item.phone, item);
+      }
+      return [...byPhone.values()].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
+    } catch (err) {
+      throw new Error(cleanError(err));
+    } finally {
+      this.busy = false;
+      this.lastSeen = Date.now();
+    }
+  }
+
   async sendMessage({ phone, template, listName, imagePath, imageFirst = false }) {
     if (this.state !== 'ready' || !this.page) throw precheckError('WhatsApp não está conectado');
     if (this.busy) throw precheckError('Já existe um envio em andamento, aguarde');
