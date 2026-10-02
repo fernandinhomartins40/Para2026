@@ -404,9 +404,15 @@ class WhatsAppClient {
       const cleanName = (...values) => {
         for (const value of values) {
           const name = String(value || '').replace(/\s+/g, ' ').trim();
-          if (name && name.length <= 120 && !/^\+?[\d\s().-]+$/.test(name)) return name;
+          if (name && name.length <= 120 && !/^\+?[\d\s().-]+$/.test(name)) {
+            return name.split(' ')[0].replace(/^[^\p{L}]+|[^\p{L}'’-]+$/gu, '') || null;
+          }
         }
         return null;
+      };
+      const isUserWid = (model) => {
+        const id = widValue(model?.id || model) || '';
+        return /@(?:c\.us|s\.whatsapp\.net|lid)$/.test(id) && !id.endsWith('@g.us');
       };
       const resolveContact = async (model, sourceName) => {
         const id = widValue(model?.id || model);
@@ -426,10 +432,14 @@ class WhatsAppClient {
       const resolved = [];
       if (source === 'contacts') {
         const contacts = await WPP.contact.list({ onlyMyContacts: true });
-        for (const contact of contacts || []) resolved.push(await resolveContact(contact, 'contato salvo'));
+        for (const contact of (contacts || []).filter(isUserWid)) {
+          resolved.push(await resolveContact(contact, 'contato salvo'));
+        }
       } else if (source === 'chats') {
         const chats = await WPP.chat.list({ onlyUsers: true });
-        for (const chat of chats || []) resolved.push(await resolveContact(chat.contact || chat, 'conversa'));
+        for (const chat of (chats || []).filter((item) => isUserWid(item.contact || item))) {
+          resolved.push(await resolveContact(chat.contact || chat, 'conversa'));
+        }
       } else {
         const groups = await WPP.group.getAllGroups();
         const groupsById = new Map((groups || []).filter(Boolean).map((group) => [widValue(group.id), group]));
