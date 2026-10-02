@@ -192,7 +192,8 @@ app.post('/api/contacts', (req, res) => {
 app.post('/api/contacts/extract', wrap(async (req, res) => {
   const contacts = await wa.get(req.user.id).extractContacts({ source: req.body?.source, groupIds: req.body?.groupIds });
   const text = contacts.map((c) => `${c.name ? c.name + ';' : ''}${c.phone}`).join('\n');
-  res.json({ contacts, text, total: contacts.length });
+  const { added, existing } = db.addContacts(req.user.id, contacts);
+  res.json({ contacts, text, total: contacts.length, added, existing, counts: db.counts(req.user.id) });
 }));
 
 app.get('/api/whatsapp/groups', wrap(async (req, res) => {

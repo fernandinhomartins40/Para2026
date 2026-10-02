@@ -70,13 +70,13 @@
         </div>
         <div class="extract-box">
           <h3>Extrair do WhatsApp</h3>
-          <p class="muted">Crie uma prévia com nome e número. Carregue os grupos e marque somente aqueles que deseja usar.</p>
+          <p class="muted">Os contatos encontrados são formatados como <code>nome;número</code> e adicionados automaticamente como pendentes.</p>
           <div class="row">
             <button id="btn-extract-chats" class="secondary">Das conversas</button>
             <button id="btn-extract-contacts" class="secondary">Dos meus contatos</button>
             <button id="btn-load-groups" class="secondary">Selecionar grupos</button>
-            <span id="extract-result" class="muted"></span>
           </div>
+          <div id="extract-result" class="extract-feedback" role="status" aria-live="polite" hidden></div>
           <div id="group-picker" hidden>
             <div class="group-picker-head">
               <b>Grupos encontrados</b>

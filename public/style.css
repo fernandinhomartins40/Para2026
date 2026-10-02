@@ -111,3 +111,8 @@ dialog .row button { flex: 1; }
 .group-picker-head label { margin: 0; }
 .group-options { max-height: 220px; overflow-y: auto; margin-bottom: 10px; }
 .group-options label { display: flex; align-items: center; gap: 7px; margin: 0; padding: 7px 4px; border-bottom: 1px solid var(--border); color: var(--text); }
+.extract-feedback { margin-top: 12px; padding: 10px 12px; border-radius: 8px; font-size: 13px; border: 1px solid transparent; }
+.extract-feedback.busy { background: #e8f1ff; border-color: #a9c8f5; color: #174a82; }
+.extract-feedback.success { background: #e1f7e5; border-color: #9bd5a5; color: #17662b; }
+.extract-feedback.warning { background: #fff4d6; border-color: #edcf78; color: #755600; }
+.extract-feedback.error { background: #fde2e1; border-color: #eda6a3; color: #921e1a; }

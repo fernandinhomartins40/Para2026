@@ -158,39 +158,59 @@ $('btn-add').onclick = async () => {
 async function extractContacts(source, groupIds = []) {
   const buttons = [$('btn-extract-chats'), $('btn-extract-contacts'), $('btn-load-groups'), $('btn-extract-groups')];
   buttons.forEach((button) => (button.disabled = true));
-  $('extract-result').textContent = 'Extraindo...';
+  showExtractFeedback('busy', '⏳ Extraindo nomes e números do WhatsApp... Isso pode levar alguns instantes.');
   try {
     const r = await api('/api/contacts/extract', {
       method: 'POST',
       body: JSON.stringify({ source, groupIds }),
     });
     $('numbers').value = r.text;
-    $('extract-result').textContent = `${r.total} contato(s) encontrado(s). Revise e clique em Adicionar à lista.`;
-    $('numbers').focus();
-    toast(`${r.total} contato(s) extraído(s) para revisão`);
+    if (r.added) {
+      filter = 'pending';
+      document.querySelectorAll('#tabs button[data-status]').forEach((button) =>
+        button.classList.toggle('active', button.dataset.status === 'pending'));
+    }
+    await loadContacts();
+    const detail = r.existing ? ` ${r.existing} já estava(m) na lista e não foi(ram) duplicado(s).` : '';
+    if (r.total) {
+      showExtractFeedback('success', `✅ Extração concluída: ${r.total} encontrado(s), ${r.added} adicionado(s) como pendente(s).${detail}`);
+      toast(`${r.added} novo(s) contato(s) adicionado(s) como pendente(s)`);
+    } else {
+      showExtractFeedback('warning', '⚠️ A extração terminou, mas nenhum número foi encontrado. Tente atualizar o WhatsApp e repetir.');
+      toast('Nenhum número foi encontrado', true);
+    }
   } catch (err) {
-    $('extract-result').textContent = err.message;
+    showExtractFeedback('error', `❌ Não foi possível concluir a extração: ${err.message}`);
     toast(err.message, true);
   } finally {
     buttons.forEach((button) => (button.disabled = false));
   }
 }
 
+function showExtractFeedback(type, message) {
+  const result = $('extract-result');
+  result.hidden = false;
+  result.className = `extract-feedback ${type}`;
+  result.textContent = message;
+}
+
 $('btn-extract-chats').onclick = () => extractContacts('chats');
 $('btn-extract-contacts').onclick = () => extractContacts('contacts');
 $('btn-load-groups').onclick = async () => {
   $('btn-load-groups').disabled = true;
-  $('extract-result').textContent = 'Carregando grupos...';
+  showExtractFeedback('busy', '⏳ Procurando grupos no WhatsApp...');
   try {
     const { groups } = await api('/api/whatsapp/groups');
     $('group-options').innerHTML = groups.map((group) => `
       <label><input type="checkbox" value="${esc(group.id)}"> <span>${esc(group.name)}</span></label>
     `).join('');
     $('group-picker').hidden = false;
-    $('extract-result').textContent = `${groups.length} grupo(s) encontrado(s).`;
+    showExtractFeedback(groups.length ? 'success' : 'warning', groups.length
+      ? `✅ ${groups.length} grupo(s) encontrado(s). Marque os desejados abaixo.`
+      : '⚠️ Nenhum grupo foi encontrado nas conversas carregadas.');
     $('groups-all').checked = false;
   } catch (err) {
-    $('extract-result').textContent = err.message;
+    showExtractFeedback('error', `❌ Não foi possível carregar os grupos: ${err.message}`);
     toast(err.message, true);
   } finally {
     $('btn-load-groups').disabled = false;
