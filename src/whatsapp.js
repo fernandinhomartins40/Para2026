@@ -86,6 +86,9 @@ class WhatsAppClient {
       }
       this.context = await chromium.launchPersistentContext(this.sessionDir, {
         headless: HEADLESS,
+        // Necessário para injetar o WA-JS no WhatsApp Web. Sem isso, a CSP da
+        // página bloqueia page.addScriptTag({ path }) como script inline.
+        bypassCSP: true,
         executablePath: process.env.CHROMIUM_PATH || undefined,
         userAgent: USER_AGENT,
         locale: 'pt-BR',
