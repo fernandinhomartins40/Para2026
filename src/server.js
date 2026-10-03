@@ -223,6 +223,17 @@ app.delete('/api/contacts', (req, res) => { const r = db.deleteNotSent(req.user.
 
 async function sendTo(userId, contact) {
   if (!contact) throw new Error('Contato não encontrado');
+  // Reconsulta imediatamente antes do envio para não confiar em estado antigo da tela.
+  // Somente registros pendentes podem chegar à automação do WhatsApp.
+  contact = db.getContact(userId, contact.id);
+  if (!contact) throw new Error('Contato não encontrado');
+  if (contact.status !== 'pending') {
+    const error = new Error(contact.status === 'sent'
+      ? 'Esse número já foi enviado. Mova-o para pendentes antes de reenviar.'
+      : 'Esse número não está pendente. Volte-o para pendentes antes de enviar.');
+    error.precheck = true;
+    throw error;
+  }
   const client = wa.get(userId);
   const imagePath = currentImagePath(userId);
   const template = db.getSetting(userId, 'text', '');
@@ -248,9 +259,10 @@ async function sendTo(userId, contact) {
 
 app.post('/api/contacts/:id/send', wrap(async (req, res) => {
   const contact = db.getContact(req.user.id, req.params.id);
-  if (contact && contact.status === 'sent' && !req.body.force) {
-    throw new Error('Esse número já recebeu a mensagem. Use "Reenviar" se quiser mandar de novo.');
-  }
+  if (!contact) throw new Error('Contato não encontrado');
+  if (contact.status !== 'pending') throw new Error(contact.status === 'sent'
+    ? 'Esse número já foi enviado. Mova-o para pendentes antes de reenviar.'
+    : 'Esse número não está pendente. Volte-o para pendentes antes de enviar.');
   res.json(await sendTo(req.user.id, contact));
 }));
 

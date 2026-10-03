@@ -5,7 +5,7 @@ Aplicação web **multiusuário com cadastro próprio (e-mail e senha)** para en
 - **Cadastro e login com e-mail e senha** (senhas com hash scrypt; 10 tentativas erradas bloqueiam por 15 min). Cada usuário tem **seu próprio WhatsApp, mensagem, imagem, lista de números e histórico** — um não vê nada do outro.
 - Conecta ao WhatsApp Web com **Playwright** (um Chromium por usuário conectado) e mostra o **QR Code** na própria página.
 - Você cola a lista de números, e clica em **"Enviar para o próximo pendente"** (ou em "Enviar" numa linha específica).
-- **Banco SQLite** guarda para quem já foi enviado (data/hora), falhas e histórico. Números repetidos não são duplicados, e um número já enviado não recebe de novo a menos que você clique em "Reenviar".
+- **Banco SQLite** guarda para quem já foi enviado (data/hora), falhas e histórico. A combinação usuário + número é única: importar novamente nunca duplica nem altera o status atual. O servidor só envia contatos com status **Pendente**; para reenviar, primeiro mova o contato enviado de volta para pendentes.
 - A sessão do WhatsApp fica salva: depois de ler o QR uma vez, não precisa ler de novo ao reiniciar.
 
 ## Requisitos

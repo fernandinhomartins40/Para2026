@@ -244,9 +244,9 @@ async function loadContacts() {
   $('rows').innerHTML = contacts
     .map((c) => {
       const actions = [];
-      if (c.status !== 'sent') actions.push(`<button class="small btn-send" data-send="${c.id}">Enviar</button>`);
+      if (c.status === 'pending') actions.push(`<button class="small btn-send" data-send="${c.id}">Enviar</button>`);
       if (c.status === 'pending') actions.push(`<button class="small secondary" data-fail="${c.id}" title="Tirar da fila de pendentes">Marcar falha</button>`);
-      if (c.status !== 'pending') actions.push(`<button class="small secondary" data-reset="${c.id}">${c.status === 'sent' ? 'Reenviar' : 'Voltar p/ pendente'}</button>`);
+      if (c.status !== 'pending') actions.push(`<button class="small secondary" data-reset="${c.id}">Voltar p/ pendente</button>`);
       actions.push(`<button class="small danger" data-del="${c.id}" title="Remover">✕</button>`);
       return `<tr id="row-${c.id}">
         <td class="select-col">${c.status === 'sent' ? `<input type="checkbox" class="sent-select" value="${c.id}" aria-label="Selecionar ${esc(c.name || formatPhone(c.phone))}">` : ''}</td>
