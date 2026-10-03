@@ -116,9 +116,15 @@
           <button id="btn-clear" class="link danger-text">Limpar não enviados</button>
         </div>
 
+        <div id="sent-batch" class="batch-bar" hidden>
+          <span><b id="sent-selected-count">0</b> enviado(s) selecionado(s)</span>
+          <button id="btn-reset-selected" class="secondary small" disabled>Selecionados → pendentes</button>
+          <button id="btn-reset-all-sent" class="secondary small">Todos os enviados → pendentes</button>
+        </div>
+
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Número</th><th>Nome</th><th>Status</th><th>Enviado em</th><th></th></tr></thead>
+            <thead><tr><th class="select-col"><input type="checkbox" id="sent-select-all" aria-label="Selecionar todos os enviados visíveis"></th><th>Número</th><th>Nome</th><th>Status</th><th>Enviado em</th><th></th></tr></thead>
             <tbody id="rows"></tbody>
           </table>
           <p id="empty" class="muted center" hidden>Nenhum número aqui.</p>

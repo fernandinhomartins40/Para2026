@@ -249,6 +249,7 @@ async function loadContacts() {
       if (c.status !== 'pending') actions.push(`<button class="small secondary" data-reset="${c.id}">${c.status === 'sent' ? 'Reenviar' : 'Voltar p/ pendente'}</button>`);
       actions.push(`<button class="small danger" data-del="${c.id}" title="Remover">✕</button>`);
       return `<tr id="row-${c.id}">
+        <td class="select-col">${c.status === 'sent' ? `<input type="checkbox" class="sent-select" value="${c.id}" aria-label="Selecionar ${esc(c.name || formatPhone(c.phone))}">` : ''}</td>
         <td>${esc(formatPhone(c.phone))}</td>
         <td>${esc(c.name || '')}</td>
         <td><span class="st ${c.status}">${STATUS_LABEL[c.status]}</span>${c.error ? `<span class="err">${esc(c.error)}</span>` : ''}</td>
@@ -257,9 +258,56 @@ async function loadContacts() {
       </tr>`;
     })
     .join('');
+  $('sent-batch').hidden = counts.sent === 0 || !['sent', 'all'].includes(filter);
+  $('sent-select-all').checked = false;
+  $('sent-select-all').indeterminate = false;
+  updateSentSelection();
   updateNextButton();
   loadPreview();
 }
+
+function updateSentSelection() {
+  const boxes = [...document.querySelectorAll('.sent-select')];
+  const selected = boxes.filter((box) => box.checked);
+  $('sent-selected-count').textContent = selected.length;
+  $('btn-reset-selected').disabled = selected.length === 0;
+  $('sent-select-all').disabled = boxes.length === 0;
+  $('sent-select-all').checked = boxes.length > 0 && selected.length === boxes.length;
+  $('sent-select-all').indeterminate = selected.length > 0 && selected.length < boxes.length;
+}
+
+$('sent-select-all').onchange = (e) => {
+  document.querySelectorAll('.sent-select').forEach((box) => (box.checked = e.target.checked));
+  updateSentSelection();
+};
+
+$('rows').onchange = (e) => {
+  if (e.target.matches('.sent-select')) updateSentSelection();
+};
+
+async function resetSent(ids, all = false) {
+  const amount = all ? 'todos os contatos enviados' : `${ids.length} contato(s) selecionado(s)`;
+  if (!confirm(`Colocar ${amount} novamente como pendente(s) para reenvio?`)) return;
+  try {
+    const r = await api('/api/contacts/reset-sent', {
+      method: 'POST',
+      body: JSON.stringify({ ids, all }),
+    });
+    toast(`${r.changed} contato(s) movido(s) para pendentes`);
+    filter = 'pending';
+    document.querySelectorAll('#tabs button[data-status]').forEach((button) =>
+      button.classList.toggle('active', button.dataset.status === 'pending'));
+    await loadContacts();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+$('btn-reset-selected').onclick = () => {
+  const ids = [...document.querySelectorAll('.sent-select:checked')].map((box) => Number(box.value));
+  resetSent(ids);
+};
+$('btn-reset-all-sent').onclick = () => resetSent([], true);
 
 async function doSend(url, rowId) {
   if (sending) return;

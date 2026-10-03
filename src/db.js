@@ -129,6 +129,8 @@ const stmts = {
   markSent: db.prepare("UPDATE contacts SET status = 'sent', error = NULL, sent_at = datetime('now', 'localtime') WHERE id = ? AND user_id = ?"),
   markFailed: db.prepare("UPDATE contacts SET status = 'failed', error = ? WHERE id = ? AND user_id = ?"),
   resetContact: db.prepare("UPDATE contacts SET status = 'pending', error = NULL, sent_at = NULL WHERE id = ? AND user_id = ?"),
+  resetSentContact: db.prepare("UPDATE contacts SET status = 'pending', error = NULL, sent_at = NULL WHERE id = ? AND user_id = ? AND status = 'sent'"),
+  resetAllSent: db.prepare("UPDATE contacts SET status = 'pending', error = NULL, sent_at = NULL WHERE user_id = ? AND status = 'sent'"),
   deleteContact: db.prepare('DELETE FROM contacts WHERE id = ? AND user_id = ?'),
   deleteNotSent: db.prepare("DELETE FROM contacts WHERE user_id = ? AND status != 'sent'"),
   counts: db.prepare('SELECT status, COUNT(*) AS n FROM contacts WHERE user_id = ? GROUP BY status'),
@@ -207,6 +209,13 @@ const addContacts = db.transaction((userId, items) => {
   return { added, existing };
 });
 
+const resetSentContacts = db.transaction((userId, ids, all = false) => {
+  if (all) return stmts.resetAllSent.run(userId).changes;
+  let changed = 0;
+  for (const id of [...new Set(ids)]) changed += stmts.resetSentContact.run(id, userId).changes;
+  return changed;
+});
+
 function listContacts(userId, status) {
   if (status && status !== 'all') return stmts.listByStatus.all(userId, status);
   return stmts.listAll.all(userId);
@@ -245,6 +254,7 @@ module.exports = {
   markSent: (userId, id) => stmts.markSent.run(id, userId),
   markFailed: (userId, id, error) => stmts.markFailed.run(error, id, userId),
   resetContact: (userId, id) => stmts.resetContact.run(id, userId),
+  resetSentContacts,
   deleteContact: (userId, id) => stmts.deleteContact.run(id, userId),
   deleteNotSent: (userId) => stmts.deleteNotSent.run(userId),
   log: (userId, c, status, message, image, error) =>

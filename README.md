@@ -43,6 +43,8 @@ Abra http://localhost:3000, crie sua conta em **Criar conta** e:
 
 Qualquer erro durante o envio (número inválido, sem WhatsApp, tempo esgotado...) marca o número como **Falhou** com o motivo e o tira da fila — o próximo clique segue para o número seguinte. O botão **Marcar falha** tira um pendente da fila manualmente; na aba *Falhas* dá para voltá-los para pendente.
 
+Na aba **Enviados**, marque um ou mais contatos e use **Selecionados → pendentes**, ou use **Todos os enviados → pendentes** para preparar um reenvio em lote com uma nova mensagem. Essa ação apenas reorganiza a fila e não dispara mensagens automaticamente.
+
 ### Extração de contatos
 
 Em **Extrair do WhatsApp**, o botão **Das conversas** percorre somente conversas individuais e **Dos meus contatos** lê a agenda, salvando apenas o primeiro nome. Conversas de grupo não entram nessas duas opções. Para extrair grupos, use **Selecionar grupos**, marque explicitamente um ou mais grupos encontrados e clique em **Extrair dos grupos selecionados**. O resultado aparece no campo no formato `Nome;5511999999999` e os novos números são adicionados automaticamente como pendentes. A tela informa quantos foram encontrados, adicionados e ignorados por já existirem.

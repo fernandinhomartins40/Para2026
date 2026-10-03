@@ -62,6 +62,10 @@ button.big { width: 100%; padding: 16px; font-size: 17px; font-weight: 600; }
 .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border); padding-bottom: 8px; flex-wrap: wrap; }
 .tabs button { background: none; color: var(--muted); padding: 6px 12px; }
 .tabs button.active { background: #e7f8f3; color: var(--green-dark); font-weight: 600; }
+.batch-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; padding: 9px 10px; background: #eef7f4; border: 1px solid #c7e5db; border-radius: 8px; font-size: 13px; }
+.batch-bar span { margin-right: auto; }
+.select-col { width: 34px; text-align: center; }
+.select-col input { width: 16px; height: 16px; cursor: pointer; }
 
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; font-size: 14px; }

@@ -209,6 +209,15 @@ app.post('/api/contacts/:id/fail', (req, res) => {
 });
 
 app.post('/api/contacts/:id/reset', (req, res) => { db.resetContact(req.user.id, req.params.id); res.json({ ok: true }); });
+app.post('/api/contacts/reset-sent', (req, res) => {
+  const all = req.body?.all === true;
+  const ids = Array.isArray(req.body?.ids)
+    ? req.body.ids.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 10000)
+    : [];
+  if (!all && !ids.length) return res.status(400).json({ error: 'Selecione pelo menos um contato enviado' });
+  const changed = db.resetSentContacts(req.user.id, ids, all);
+  res.json({ changed, counts: db.counts(req.user.id) });
+});
 app.delete('/api/contacts/:id', (req, res) => { db.deleteContact(req.user.id, req.params.id); res.json({ ok: true }); });
 app.delete('/api/contacts', (req, res) => { const r = db.deleteNotSent(req.user.id); res.json({ removed: r.changes }); });
 
